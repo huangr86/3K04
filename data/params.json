@@ -1,0 +1,22 @@
+{
+  "schema": {
+    "LRL_ppm":            {"label":"Lower Rate Limit","unit":"ppm","type":"int","min":30,"max":175},
+    "URL_ppm":            {"label":"Upper Rate Limit","unit":"ppm","type":"int","min":50,"max":175},
+    "Atrial_Amp_V":       {"label":"Atrial Amplitude","unit":"V","type":"float","min":0.5,"max":7.5},
+    "Atrial_PW_ms":       {"label":"Atrial Pulse Width","unit":"ms","type":"float","min":0.05,"max":1.5},
+    "Ventricular_Amp_V":  {"label":"Ventricular Amplitude","unit":"V","type":"float","min":0.5,"max":7.5},
+    "Ventricular_PW_ms":  {"label":"Ventricular Pulse Width","unit":"ms","type":"float","min":0.05,"max":1.5},
+    "VRP_ms":             {"label":"VRP (Ventricular Refr. P.)","unit":"ms","type":"int","min":150,"max":500},
+    "ARP_ms":             {"label":"ARP (Atrial Refr. P.)","unit":"ms","type":"int","min":150,"max":500}
+  },
+  "defaults": {
+    "LRL_ppm": 60,
+    "URL_ppm": 120,
+    "Atrial_Amp_V": 3.5,
+    "Atrial_PW_ms": 0.4,
+    "Ventricular_Amp_V": 3.5,
+    "Ventricular_PW_ms": 0.4,
+    "VRP_ms": 320,
+    "ARP_ms": 250
+  }
+}
