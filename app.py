@@ -214,7 +214,7 @@ class MonitorView(ttk.Frame):
         ttk.Button(right, text="Set", command=self.on_set_device).pack(side="left", padx=6, pady=8)
 
         #Transfer back to login view 
-        ttk.Button(right, text="Logout", command=lambda: self.app.show_view(self.app.login_view)).pack(side="left", padx=6, pady=8)
+        ttk.Button(right, text="Logout", command= self.on_logout).pack(side="left", padx=6, pady=8)
 
         #Sets up notifcation banner for device connections
         self.banner_frame = tk.Frame(self, bg="#ffefc6")
@@ -310,6 +310,11 @@ class MonitorView(ttk.Frame):
         for k, v in self.defaults.items():
             self.vars[k].set(str(v))
         self.app.status_var.set("Comms: idle  |  defaults restored")
+    def on_logout(self):
+        self.app.status_var.set(f"Comms: idle")
+        self.app.show_view(self.app.login_view)
+
+        
 
 # ------------------------------- Run app -----------------------------------
 if __name__ == "__main__":
