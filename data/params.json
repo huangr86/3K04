@@ -18,5 +18,15 @@
     "Ventricular_PW_ms": 0.4,
     "VRP_ms": 320,
     "ARP_ms": 250
+  },
+  "descriptions": {
+    "LRL_ppm": "Minimum pacing rate allowed.",
+    "URL_ppm": "Maximum pacing rate allowed.",
+    "Atrial_Amp_V": "Voltage of atrial pacing pulse.",
+    "Atrial_PW_ms": "Duration of atrial pacing pulse.",
+    "Ventricular_Amp_V": "Voltage of ventricular pacing pulse.",
+    "Ventricular_PW_ms": "Duration of ventricular pacing pulse.",
+    "VRP_ms": "After a ventricular beat, briefly ignore new ventricular blips.",
+    "ARP_ms": "After an atrial beat, briefly ignore new atrial blips."
   }
 }

@@ -229,7 +229,7 @@ class MonitorView(ttk.Frame):
 
         #Loads paramteter data structures/defaults from params.json
         self.PARAM_SCHEMA, self.defaults = load_param_config()
-
+        #Creates varaible for each parameter and sets its default based on params.json
         self.vars = {k: tk.StringVar(value=str(self.defaults[k])) for k in self.PARAM_SCHEMA}
         self.entries = {}
 
@@ -242,7 +242,7 @@ class MonitorView(ttk.Frame):
             label_text = f"{field_meta['label']} ({field_meta['unit']}):"
             label_widget = ttk.Label(params, text=label_text)
             label_widget.grid(row=row_index, column=0, sticky="e", padx=6, pady=4)
-            #Input box for values
+            #Input box for values, updates stringVar variable on entry
             entry_widget = ttk.Entry(params, textvariable=self.vars[field_key], width=12)
             entry_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
 
@@ -262,12 +262,13 @@ class MonitorView(ttk.Frame):
 
     
     def on_set_device(self):
-        new_id = self.device_var.get().strip()
+        new_id = self.device_var.get().strip() #Grabs ID from entry box
         if not new_id:
-            messagebox.showwarning("Missing Device ID", "Enter a device ID first")
+            messagebox.showwarning("Missing Device ID", "Enter a device ID first") #Error Case for empty device ID
             return
-        self.app.set_device(new_id)
+        self.app.set_device(new_id) #Calls function to set the ID accordingly
 
+    #Helper Functions for visibility of notification banner
     def show_notice(self, text, bg="#ffefc6", fg="#333"):
         self.banner_label.config(text=text, bg=bg, fg=fg)
         self.banner_frame.config(bg=bg)
@@ -286,14 +287,17 @@ class MonitorView(ttk.Frame):
             raw = self.vars[key].get().strip()
             ty  = meta["type"]
             try:
+                #Error checking by attemping to cast to correct type
                 val = ty(raw)
+                #Incorrect type entered
             except ValueError:
                 errors.append(f"{meta['label']}: not a valid {ty.__name__}")
                 continue
+            #Variable limit checking
             if val < meta["min"] or val > meta["max"]:
                 errors.append(f"{meta['label']}: {val} {meta['unit']} out of range [{meta['min']}, {meta['max']}]")
             clean[key] = val
-
+        #Edge case of LRL and URL
         if "LRL_ppm" in clean and "URL_ppm" in clean and clean["LRL_ppm"] >= clean["URL_ppm"]:
             errors.append("Lower Rate Limit must be < Upper Rate Limit")
 
@@ -304,9 +308,11 @@ class MonitorView(ttk.Frame):
         if errors:
             messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
             return
+        #Clean parameters will be used in Deliverable 2
         self.app.status_var.set("Comms: idle  |  parameters OK")
 
     def on_reset(self):
+        #Resets all parameters to defaults from params.json
         for k, v in self.defaults.items():
             self.vars[k].set(str(v))
         self.app.status_var.set("Comms: idle  |  defaults restored")
