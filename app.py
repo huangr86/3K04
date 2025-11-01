@@ -7,7 +7,7 @@ BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR     = os.path.join(BASE_DIR, "data")
 USERS_JSON   = os.path.join(DATA_DIR, "users.json")
 PARAMS_JSON  = os.path.join(DATA_DIR, "params.json") 
-
+USER_PARAMS_JSON = os.path.join(DATA_DIR, "user_params.json")
 
 def ensure_files():
     """Create data/ and tiny JSON files if missing."""
@@ -24,6 +24,18 @@ def load_users():
 
 def save_users(data):
     with open(USERS_JSON, "w") as f:
+        json.dump(data, f, indent=2)
+
+def load_user_params():
+    """Return dict of user parameters from JSON file, or {} if none."""
+    if os.path.exists(USER_PARAMS_JSON):
+        with open(USER_PARAMS_JSON, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_user_params(data):
+    """Write updated user parameters dict to JSON file."""
+    with open(USER_PARAMS_JSON, "w") as f:
         json.dump(data, f, indent=2)
 
 
@@ -179,10 +191,16 @@ class LoginView(ttk.Frame):
         if not match:
             messagebox.showerror("Login failed", "Invalid username or password")
             return
-
+        
         self.app.current_user = name
         #Sets status bar to user ID
         self.app.status_var.set(f"Comms: idle  |  user: {name}")
+        user_params = load_user_params()
+        if name in user_params:
+            for k, v in user_params[name].items():
+                if k in self.app.monitor_view.vars:
+                    self.app.monitor_view.vars[k].set(str(v))
+
         #After successful login swap to monitor view
         self.app.show_view(self.app.monitor_view)
 
@@ -308,8 +326,14 @@ class MonitorView(ttk.Frame):
         if errors:
             messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
             return
+        
+        data = load_user_params()
+        username = self.app.current_user
+        data[username] = clean
+        save_user_params(data)
+
         #Clean parameters will be used in Deliverable 2
-        self.app.status_var.set("Comms: idle  |  parameters OK")
+        self.app.status_var.set(f"Comms: idle  |  parameters saved for {username}")
 
     def on_reset(self):
         #Resets all parameters to defaults from params.json
