@@ -1,13 +1,13 @@
 {
   "bob": {
-    "LRL_ppm": 60,
-    "URL_ppm": 120,
-    "Atrial_Amp_V": 3.5,
-    "Atrial_PW_ms": 0.4,
+    "LRL_ppm": 50,
+    "URL_ppm": 51,
+    "Atrial_Amp_V": 5.0,
+    "Atrial_PW_ms": 0.5,
     "Ventricular_Amp_V": 3.5,
     "Ventricular_PW_ms": 0.4,
     "VRP_ms": 320,
-    "ARP_ms": 250
+    "ARP_ms": 500
   },
   "Ricky": {
     "LRL_ppm": 140,

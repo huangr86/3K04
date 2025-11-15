@@ -3,6 +3,16 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+"""
+    "Maximum_Sensor_Rate":{"label":"Maximum_Sensor_Rate","unit":"ppm","type":"int",
+                            "min":50,"max":175,
+                             "modes": ["AOOR", "AAIR", "VOOR", "VVIR"]},
+    "Rate Smoothing":     {"label":"Rate Smoothing","unit":"%","type":"int", "allowed": [0, 3, 6, 9, 12, 15, 18, 21, 25],
+                            "modes": ["AAI", "AAIR", "VVI", "VVIR"] }
+
+"""
+
+
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR     = os.path.join(BASE_DIR, "data")
 USERS_JSON   = os.path.join(DATA_DIR, "users.json")
@@ -223,7 +233,7 @@ class MonitorView(ttk.Frame):
         self.mode_cb = ttk.Combobox(right, values=["AOO", "VOO", "AAI", "VVI"], state="readonly", width=8)
         self.mode_cb.set("Select mode")
         self.mode_cb.pack(side="left", padx=6, pady=8)
-        self.mode_cb.bind("<<ComboboxSelected>>", lambda e: self.app.set_mode(self.mode_cb.get()))
+        self.mode_cb.bind("<<ComboboxSelected>>", lambda e: self.on_mode_change())
 
         # Device ID entry and Set button
         ttk.Label(right, text="Device ID:").pack(side="left", padx=(12, 6), pady=8)
@@ -254,6 +264,7 @@ class MonitorView(ttk.Frame):
         params = ttk.LabelFrame(body, text="Programmable Parameters", padding=12)
         params.pack(side="left", fill="y", padx=(0, 8))
 
+        self.rows = {}
         row_index = 0
         for field_key, field_meta in self.PARAM_SCHEMA.items():
             #Grabs labels and units from params.json
@@ -263,8 +274,8 @@ class MonitorView(ttk.Frame):
             #Input box for values, updates stringVar variable on entry
             entry_widget = ttk.Entry(params, textvariable=self.vars[field_key], width=12)
             entry_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
-
             self.entries[field_key] = entry_widget
+            self.rows[field_key] = (label_widget, entry_widget)
             row_index += 1
 
         buttons_row_frame = ttk.Frame(params)
@@ -278,6 +289,21 @@ class MonitorView(ttk.Frame):
         right_panel.pack(side="left", fill="both", expand=True)
         ttk.Label(right_panel, text="Placeholder").pack(expand=True)
 
+    def on_mode_change(self):
+        mode = self.mode_cb.get()
+        self.app.set_mode(mode)
+
+        for key, meta in self.PARAM_SCHEMA.items():
+            allowed_modes = meta.get("modes", [])
+
+            label_widget, entry_widget = self.rows[key]
+
+            if mode in allowed_modes:
+                label_widget.grid()
+                entry_widget.grid()
+            else:
+                label_widget.grid_remove()
+                entry_widget.grid_remove()
     
     def on_set_device(self):
         new_id = self.device_var.get().strip() #Grabs ID from entry box
