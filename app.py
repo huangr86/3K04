@@ -267,16 +267,40 @@ class MonitorView(ttk.Frame):
         self.rows = {}
         row_index = 0
         for field_key, field_meta in self.PARAM_SCHEMA.items():
-            #Grabs labels and units from params.json
             label_text = f"{field_meta['label']} ({field_meta['unit']}):"
             label_widget = ttk.Label(params, text=label_text)
             label_widget.grid(row=row_index, column=0, sticky="e", padx=6, pady=4)
-            #Input box for values, updates stringVar variable on entry
-            entry_widget = ttk.Entry(params, textvariable=self.vars[field_key], width=12)
+
+            entry_widget = ttk.Entry(params, textvariable=self.vars[field_key], width=10)
             entry_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
             self.entries[field_key] = entry_widget
-            self.rows[field_key] = (label_widget, entry_widget)
+
+            # Create slider ONLY if parameter has ranges
+            slider = None
+            if "ranges" in field_meta:
+                r0 = field_meta["ranges"][0]  # choose first range for slider UI
+                slider = tk.Scale(
+                    params,
+                    from_=r0["min"],
+                    to=r0["max"],
+                    orient="horizontal",
+                    resolution=r0["inc"],
+                    length=140,
+                    command=lambda val, k=field_key: self._slider_changed(k, val)
+                )
+                slider.grid(row=row_index, column=2, padx=6, pady=4)
+
+                # sync entry → slider
+                self.vars[field_key].trace_add(
+                    "write",
+                    lambda *_,
+                    k=field_key,
+                    sl=slider: self._entry_changed(k, sl)
+                )
+
+            self.rows[field_key] = (label_widget, entry_widget, slider)
             row_index += 1
+
 
         buttons_row_frame = ttk.Frame(params)
         buttons_row_frame.grid(row=row_index + 1, column=0, columnspan=2, pady=(12, 0))
@@ -294,16 +318,20 @@ class MonitorView(ttk.Frame):
         self.app.set_mode(mode)
 
         for key, meta in self.PARAM_SCHEMA.items():
+            widgets = self.rows[key]  # label, entry, maybe slider
             allowed_modes = meta.get("modes", [])
 
-            label_widget, entry_widget = self.rows[key]
-
             if mode in allowed_modes:
-                label_widget.grid()
-                entry_widget.grid()
+                # show parameter widgets
+                for w in widgets:
+                    if w is not None:
+                        w.grid()
             else:
-                label_widget.grid_remove()
-                entry_widget.grid_remove()
+                # hide widgets not used by this mode
+                for w in widgets:
+                    if w is not None:
+                        w.grid_remove()
+
     
     def on_set_device(self):
         new_id = self.device_var.get().strip() #Grabs ID from entry box
@@ -327,6 +355,30 @@ class MonitorView(ttk.Frame):
 
     def _parse_and_validate(self):
         clean, errors = {}, []
+
+        def value_in_ranges(value, ranges):
+            for r in ranges:
+                if r["min"] <= value <= r["max"]:
+                    return True
+            return False
+        
+        def snap(value, inc):
+            snapped = round(value / inc) * inc
+
+            # compute decimal places needed from increment
+            if isinstance(inc, float):
+                decimals = len(str(inc).split(".")[1])
+                return round(snapped, decimals)
+
+            return int(snapped)
+        
+        def find_range(value, ranges):
+            for r in ranges:
+                if r["min"] <= value <= r["max"]:
+                    return r
+            return None
+    
+
         for key, meta in self.PARAM_SCHEMA.items():
             raw = self.vars[key].get().strip()
             ty  = meta["type"]
@@ -338,14 +390,84 @@ class MonitorView(ttk.Frame):
                 errors.append(f"{meta['label']}: not a valid {ty.__name__}")
                 continue
             #Variable limit checking
-            if val < meta["min"] or val > meta["max"]:
-                errors.append(f"{meta['label']}: {val} {meta['unit']} out of range [{meta['min']}, {meta['max']}]")
+            if "ranges" in meta:
+                if not value_in_ranges(val, meta["ranges"]):
+                    # Build readable range string
+                    range_str = " or ".join(
+                        f"[{r['min']}, {r['max']}]" for r in meta["ranges"]
+                    )
+                    errors.append(
+                        f"{meta['label']}: {val} {meta['unit']} out of valid ranges {range_str}"
+                    )
+                    continue
+
             clean[key] = val
+
+        if errors:
+            return clean, errors
+            
+        for key, meta in self.PARAM_SCHEMA.items():
+            if key not in clean:
+                continue
+
+            val = clean[key]
+
+            # Only snap if the parameter has ranges and increments
+            if "ranges" in meta:
+                r = find_range(val, meta["ranges"])
+                if r is not None:
+                    snapped = snap(val, r["inc"])
+                    # clamp after snap
+                    snapped = max(r["min"], min(snapped, r["max"]))
+                    clean[key] = snapped
+                    self.vars[key].set(str(snapped))
+            
+            
+
         #Edge case of LRL and URL
         if "LRL_ppm" in clean and "URL_ppm" in clean and clean["LRL_ppm"] >= clean["URL_ppm"]:
             errors.append("Lower Rate Limit must be < Upper Rate Limit")
 
+
         return clean, errors
+    
+
+    def _slider_changed(self, key, val):
+        """Update entry when slider moves."""
+        meta = self.PARAM_SCHEMA[key]
+
+        # apply snapping
+        inc = meta["ranges"][0]["inc"]
+        snapped = round(float(val) / inc) * inc
+
+        # fix floating artifacts
+        if isinstance(inc, float):
+            snapped = round(snapped, len(str(inc).split(".")[1]))
+        else:
+            snapped = int(snapped)
+
+        self.vars[key].set(str(snapped))
+
+
+    def _entry_changed(self, key, slider):
+        """Update slider when entry changes (if valid)."""
+        raw = self.vars[key].get()
+        try:
+            val = float(raw)
+        except ValueError:
+            return
+
+        meta = self.PARAM_SCHEMA[key]
+        r0 = meta["ranges"][0]
+
+        if r0["min"] <= val <= r0["max"]:
+            slider.set(val)
+
+
+
+            
+
+
 
     def on_save(self):
         clean, errors = self._parse_and_validate()

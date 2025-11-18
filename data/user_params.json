@@ -1,21 +1,21 @@
 {
   "bob": {
-    "LRL_ppm": 50,
-    "URL_ppm": 51,
-    "Atrial_Amp_V": 5.0,
-    "Atrial_PW_ms": 0.5,
-    "Ventricular_Amp_V": 3.5,
-    "Ventricular_PW_ms": 0.4,
-    "VRP_ms": 320,
-    "ARP_ms": 500
+    "LRL_ppm": 30,
+    "URL_ppm": 60,
+    "Atrial_Amp_V": 4.0,
+    "Ventricular_Amp_V": 3.2,
+    "Atrial_PW_ms": 1,
+    "Ventricular_PW_ms": 30,
+    "VRP_ms": 330,
+    "ARP_ms": 310
   },
   "Ricky": {
     "LRL_ppm": 140,
     "URL_ppm": 150,
     "Atrial_Amp_V": 3.5,
-    "Atrial_PW_ms": 0.4,
+    "Atrial_PW_ms": 1.2,
     "Ventricular_Amp_V": 3.5,
-    "Ventricular_PW_ms": 0.4,
+    "Ventricular_PW_ms": 1.4,
     "VRP_ms": 320,
     "ARP_ms": 250
   }
