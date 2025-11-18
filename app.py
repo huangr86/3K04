@@ -56,7 +56,7 @@ def load_param_config():
 
     schema_raw = cfg.get("schema", {})
     defaults   = cfg.get("defaults", {})
-
+    modes  = cfg.get("modes", [])
     
     type_map = {"int": int, "float": float}
 
@@ -66,7 +66,7 @@ def load_param_config():
         m["type"] = type_map.get(m.get("type", "int"), int)  
         schema[key] = m
 
-    return schema, defaults
+    return schema, defaults, modes
 
 
 class App(tk.Tk):
@@ -221,7 +221,8 @@ class MonitorView(ttk.Frame):
         super().__init__(parent)
         self.app = app
 
-        
+        self.default_mode = "VOO"
+
         header = ttk.Frame(self)
         header.pack(side="top", fill="x")
         ttk.Label(header, text="Monitor", font=("TkDefaultFont", 16, "bold")).pack(side="left", padx=12, pady=8)
@@ -229,8 +230,16 @@ class MonitorView(ttk.Frame):
         right.pack(side="right")
 
         #Dropdown menu for mode selection
+        #Loads paramteter data structures/defaults from params.json
         ttk.Label(right, text="Mode:").pack(side="left", padx=(0, 6), pady=8)
-        self.mode_cb = ttk.Combobox(right, values=["AOO", "VOO", "AAI", "VVI"], state="readonly", width=8)
+        self.PARAM_SCHEMA, self.defaults, self.modes = load_param_config()
+
+        self.mode_cb = ttk.Combobox(
+            right,
+            values=self.modes,
+            state="readonly",
+            width=8
+        )
         self.mode_cb.set("Select mode")
         self.mode_cb.pack(side="left", padx=6, pady=8)
         self.mode_cb.bind("<<ComboboxSelected>>", lambda e: self.on_mode_change())
@@ -255,8 +264,6 @@ class MonitorView(ttk.Frame):
         body = ttk.Frame(self, padding=8)
         body.pack(fill="both", expand=True)
 
-        #Loads paramteter data structures/defaults from params.json
-        self.PARAM_SCHEMA, self.defaults = load_param_config()
         #Creates varaible for each parameter and sets its default based on params.json
         self.vars = {k: tk.StringVar(value=str(self.defaults[k])) for k in self.PARAM_SCHEMA}
         self.entries = {}
@@ -266,40 +273,77 @@ class MonitorView(ttk.Frame):
 
         self.rows = {}
         row_index = 0
+
+
         for field_key, field_meta in self.PARAM_SCHEMA.items():
-            label_text = f"{field_meta['label']} ({field_meta['unit']}):"
+            unit = field_meta.get("unit", "")  # default to empty string if not present
+            label_text = f"{field_meta['label']}" + (f" ({unit})" if unit else "") + ":"
             label_widget = ttk.Label(params, text=label_text)
             label_widget.grid(row=row_index, column=0, sticky="e", padx=6, pady=4)
 
-            entry_widget = ttk.Entry(params, textvariable=self.vars[field_key], width=10)
-            entry_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
-            self.entries[field_key] = entry_widget
+            var = self.vars[field_key]
 
             # Create slider ONLY if parameter has ranges
-            slider = None
-            if "ranges" in field_meta:
-                r0 = field_meta["ranges"][0]  # choose first range for slider UI
-                slider = tk.Scale(
+            input_widget = None
+            slider_widget = None
+
+            if "allowed" in field_meta:
+                # Create combobox for parameters with a fixed list of allowed values
+                input_widget = ttk.Combobox(
                     params,
-                    from_=r0["min"],
-                    to=r0["max"],
-                    orient="horizontal",
-                    resolution=r0["inc"],
-                    length=140,
-                    command=lambda val, k=field_key: self._slider_changed(k, val)
+                    values=field_meta["allowed"],
+                    textvariable=var,
+                    state="readonly",
+                    width=12
                 )
-                slider.grid(row=row_index, column=2, padx=6, pady=4)
+                input_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
+                
+
+
+            elif "ranges" in field_meta:
+
+                input_widget = ttk.Entry(params, textvariable=var, width=10)
+                input_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
+
+                allowed_vals = []
+                for r in field_meta["ranges"]:
+                    v = r["min"]
+                    while v <= r["max"]:
+                        allowed_vals.append(v)
+                        v = round(v + r["inc"], 5)  # prevent float drift
+
+                # Sort & remove duplicates
+                allowed_vals = sorted(set(allowed_vals))
+
+                # Store these for later use
+                field_meta["allowed_vals"] = allowed_vals
+
+
+
+                slider_widget = tk.Scale(
+                    params,
+                    from_=0,
+                    to=len(allowed_vals) - 1,
+                    orient="horizontal",
+                    length=160,
+                    resolution=1,
+                    command=lambda idx, k=field_key: self._slider_changed(k, idx)
+                )
+                slider_widget.grid(row=row_index, column=2, padx=6, pady=4)
 
                 # sync entry → slider
-                self.vars[field_key].trace_add(
+                var.trace_add(
                     "write",
                     lambda *_,
                     k=field_key,
-                    sl=slider: self._entry_changed(k, sl)
+                    sl=slider_widget: self._entry_changed(k, sl)
                 )
 
-            self.rows[field_key] = (label_widget, entry_widget, slider)
+            
+
+            self.rows[field_key] = (label_widget, input_widget, slider_widget)
             row_index += 1
+        
 
 
         buttons_row_frame = ttk.Frame(params)
@@ -312,6 +356,9 @@ class MonitorView(ttk.Frame):
         right_panel = ttk.Frame(body, padding=16, relief="groove")
         right_panel.pack(side="left", fill="both", expand=True)
         ttk.Label(right_panel, text="Placeholder").pack(expand=True)
+
+        self.mode_cb.set(self.default_mode)  # select default mode in dropdown
+        self.on_mode_change()                # update visible parameters
 
     def on_mode_change(self):
         mode = self.mode_cb.get()
@@ -381,16 +428,18 @@ class MonitorView(ttk.Frame):
 
         for key, meta in self.PARAM_SCHEMA.items():
             raw = self.vars[key].get().strip()
-            ty  = meta["type"]
-            try:
-                #Error checking by attemping to cast to correct type
-                val = ty(raw)
-                #Incorrect type entered
-            except ValueError:
-                errors.append(f"{meta['label']}: not a valid {ty.__name__}")
-                continue
-            #Variable limit checking
+
             if "ranges" in meta:
+                ty  = meta["type"]
+                try:
+                    #Error checking by attemping to cast to correct type
+                    val = ty(raw)
+                    #Incorrect type entered
+                except ValueError:
+                    errors.append(f"{meta['label']}: not a valid {ty.__name__}")
+                    continue
+                #Variable limit checking
+
                 if not value_in_ranges(val, meta["ranges"]):
                     # Build readable range string
                     range_str = " or ".join(
@@ -402,6 +451,12 @@ class MonitorView(ttk.Frame):
                     continue
 
             clean[key] = val
+
+            if "allowed" in meta:
+                if raw not in meta["allowed"]:
+                    errors.append(f"{meta['label']}: '{raw}' not a valid option")
+                else:
+                    clean[key] = raw
 
         if errors:
             return clean, errors
@@ -432,37 +487,34 @@ class MonitorView(ttk.Frame):
         return clean, errors
     
 
-    def _slider_changed(self, key, val):
-        """Update entry when slider moves."""
+    def _slider_changed(self, key, idx):
+        """When slider moves, update entry."""
         meta = self.PARAM_SCHEMA[key]
+        allowed = meta.get("allowed_vals")
+        if not allowed:
+            return
 
-        # apply snapping
-        inc = meta["ranges"][0]["inc"]
-        snapped = round(float(val) / inc) * inc
+        idx = int(float(idx))
+        idx = max(0, min(idx, len(allowed) - 1))
+        self.vars[key].set(str(allowed[idx]))
 
-        # fix floating artifacts
-        if isinstance(inc, float):
-            snapped = round(snapped, len(str(inc).split(".")[1]))
-        else:
-            snapped = int(snapped)
-
-        self.vars[key].set(str(snapped))
 
 
     def _entry_changed(self, key, slider):
-        """Update slider when entry changes (if valid)."""
         raw = self.vars[key].get()
         try:
-            val = float(raw)
+            v = float(raw)
         except ValueError:
             return
 
         meta = self.PARAM_SCHEMA[key]
-        r0 = meta["ranges"][0]
+        allowed = meta.get("allowed_vals")
+        if not allowed:
+            return
 
-        if r0["min"] <= val <= r0["max"]:
-            slider.set(val)
-
+        # find the nearest allowed value
+        nearest_idx = min(range(len(allowed)), key=lambda i: abs(allowed[i] - v))
+        slider.set(nearest_idx)
 
 
             

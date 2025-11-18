@@ -1,7 +1,10 @@
 {
+  "modes": ["AOO", "VOO", "AAI", "VVI", "AOOR", "VOOR", "AAIR", "VVIR"],
+
+
   "schema": {
     "LRL_ppm":            { "label":"               Lower Rate Limit","unit":"ppm","type":"int",
-                            "ranges" : [   { "min": 30, "max": 50, "inc": 5 },  { "min": 50, "max": 90, "inc": 1}, { "min": 90, "max": 170, "inc": 5} ],
+                            "ranges" : [   { "min": 30, "max": 50, "inc": 5 },  { "min": 50, "max": 90, "inc": 1}, { "min": 90, "max": 175, "inc": 5} ],
                             "modes": ["AOO", "VOO", "AAI","VVI", "AOOR", "AAIR", "VOOR", "VVIR"] },
 
     "URL_ppm":            {"label":"Upper Rate Limit","unit":"ppm","type":"int",
@@ -20,9 +23,17 @@
                             "ranges" : [   { "min": 1, "max": 30, "inc": 1 }],
                             "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
 
+    "Atrial Sensitivity":  {"label":"Atrial Sensitivity","unit":"mv","type":"float",
+                            "ranges" : [   { "min": 1, "max": 10, "inc": 0.5 }, { "min": 0.25, "max": 0.75, "inc": 0.25 }],
+                            "modes": ["AAI", "AAIR"] },
+
+    "Ventricular Sensitivity":  {"label":"Ventricular Sensitivity","unit":"mv","type":"float",
+                            "ranges" : [   { "min": 1, "max": 10, "inc": 0.5 }, { "min": 0.25, "max": 0.75, "inc": 0.25 }],
+                            "modes": ["VVI", "VVIR"] },
+
     "Ventricular_PW_ms":  {"label":"Ventricular Pulse Width","unit":"ms","type":"float",
                             "ranges" : [   { "min": 1, "max": 30, "inc": 1 }],
-                            "modes": ["VOO", "VVI", "VOOR", "VVIR"] },
+                            "modes": ["VOO", "VVI", "VOOR", "VVIR"] },  
 
     "VRP_ms":             {"label":"VRP (Ventricular Refr. P.)","unit":"ms","type":"int",
                             "ranges" : [   { "min": 150, "max": 500, "inc": 10 }],
@@ -30,7 +41,33 @@
 
     "ARP_ms":             {"label":"ARP (Atrial Refr. P.)","unit":"ms","type":"int",
                             "ranges" : [   { "min": 150, "max": 500, "inc": 10 }],
-                            "modes": ["AAI", "AAIR"] }
+                            "modes": ["AAI", "AAIR"] },
+
+    "Rate Smoothing":     {"label":"Rate Smoothing","unit":"%","type":"int",
+                            "ranges" : [   { "min": 0, "max": 21, "inc": 3}, { "min": 25, "max": 25, "inc": 1}],
+                            "modes":  ["AAI","VVI", "AAIR", "VVIR"] },
+
+    "Reaction Time":     {"label":"Reaction Time","unit":"s","type":"int",
+                            "ranges" : [   { "min": 10, "max": 50, "inc": 10}],
+                            "modes":  ["AAOR", "AAIR", "VOOR", "VVIR"] },
+
+    "Response Factor":     {"label":"Response Factor","unit":"","type":"int",
+                            "ranges" : [   { "min": 1, "max": 16, "inc": 1}],
+                            "modes":  ["AAOR", "AAIR", "VOOR", "VVIR"] },
+
+    "Recovery Time":     {"label":"Recovery Time","unit":"min","type":"int",
+                            "ranges" : [   { "min": 2, "max": 16, "inc": 1}],
+                            "modes":  ["AAOR", "AAIR", "VOOR", "VVIR"] },
+
+    "Activity Threshold":     {"label":"Activity Threshold", "allowed": ["V-Low", "Low", "Med-Low", "Med", "Med-High", "High", "V-High"],
+                            "modes":  ["AAOR", "AAIR", "VOOR", "VVIR"] },
+
+    "Hysteresis":     {"label":"Hysteresis", "allowed": ["Off", "Track LRL"],
+                            "modes":  ["AAI","VVI", "AAIR", "VVIR"] }
+
+
+
+
 
   },
   "defaults": {
@@ -42,7 +79,15 @@
     "Ventricular_PW_ms": 1,
     "VRP_ms": 320,
     "ARP_ms": 250,
-    "Rate Smoothing": 0
+    "Atrial Sensitivity": 0.75,
+    "Ventricular Sensitivity": 2.5,
+    "Rate Smoothing": 0,
+    "Reaction Time" : 30,
+    "Response Factor" : 8,
+    "Recovery Time" : 5,
+    "Activity Threshold" : "Med",
+    "Hysteresis" : "Off" 
+
   },
   "descriptions": {
     "LRL_ppm": "Minimum pacing rate allowed.",
@@ -53,6 +98,13 @@
     "Ventricular_PW_ms": "Duration of ventricular pacing pulse.",
     "VRP_ms": "After a ventricular beat, briefly ignore new ventricular blips.",
     "ARP_ms": "After an atrial beat, briefly ignore new atrial blips.",
-    "Rate Smoothing": "limit the pacing rate change" 
+    "Atrial Sensitivity": "Determines how small an atrial signal the pacemaker will detect.",
+    "Ventricular Sensitivity": "Determines how small an ventricular signal the pacemaker will detect.",
+    "Rate Smoothing": "limit the pacing rate change",
+    "Reaction Time": "How quickly the pacemaker speeds up your heart rate when you become active",
+    "Response Factor": "Determines how strongly the pacemaker adjusts the heart rate in response to patient activity",
+    "Recovery Time": "the time it takes for the heart rate to drop from the maximum safe rate (MSR)",
+    "Activity Threshold": "add stuff",
+    "Hysteresis": "add stuff"
   }
 }

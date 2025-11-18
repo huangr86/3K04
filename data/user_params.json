@@ -1,22 +1,38 @@
 {
   "bob": {
-    "LRL_ppm": 30,
-    "URL_ppm": 60,
-    "Atrial_Amp_V": 4.0,
-    "Ventricular_Amp_V": 3.2,
+    "LRL_ppm": 60,
+    "URL_ppm": 120,
+    "Atrial_Amp_V": 3.5,
+    "Ventricular_Amp_V": 3.5,
     "Atrial_PW_ms": 1,
-    "Ventricular_PW_ms": 30,
-    "VRP_ms": 330,
-    "ARP_ms": 310
+    "Atrial Sensitivity": 0.75,
+    "Ventricular Sensitivity": 2.5,
+    "Ventricular_PW_ms": 1,
+    "VRP_ms": 320,
+    "ARP_ms": 250,
+    "Rate Smoothing": 0,
+    "Reaction Time": 30,
+    "Response Factor": 8,
+    "Recovery Time": 5,
+    "Activity Threshold": "Low",
+    "Hysteresis": "Track LRL"
   },
   "Ricky": {
     "LRL_ppm": 140,
     "URL_ppm": 150,
     "Atrial_Amp_V": 3.5,
-    "Atrial_PW_ms": 1.2,
     "Ventricular_Amp_V": 3.5,
-    "Ventricular_PW_ms": 1.4,
+    "Atrial_PW_ms": 1,
+    "Atrial Sensitivity": 6.0,
+    "Ventricular Sensitivity": 10.0,
+    "Ventricular_PW_ms": 1,
     "VRP_ms": 320,
-    "ARP_ms": 250
+    "ARP_ms": 250,
+    "Rate Smoothing": 21,
+    "Reaction Time": 30,
+    "Response Factor": 4,
+    "Recovery Time": 12,
+    "Activity Threshold": "V-Low",
+    "Hysteresis": "Track LRL"
   }
 }
