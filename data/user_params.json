@@ -1,38 +1,118 @@
 {
   "bob": {
-    "LRL_ppm": 60,
-    "URL_ppm": 120,
-    "Atrial_Amp_V": 3.5,
-    "Ventricular_Amp_V": 3.5,
-    "Atrial_PW_ms": 1,
-    "Atrial Sensitivity": 0.75,
-    "Ventricular Sensitivity": 2.5,
-    "Ventricular_PW_ms": 1,
-    "VRP_ms": 320,
-    "ARP_ms": 250,
-    "Rate Smoothing": 0,
-    "Reaction Time": 30,
-    "Response Factor": 8,
-    "Recovery Time": 5,
-    "Activity Threshold": "Low",
-    "Hysteresis": "Track LRL"
+    "VVI": {
+      "LRL_ppm": 52,
+      "URL_ppm": 125,
+      "Ventricular_Amp_V": 2.0,
+      "Ventricular Sensitivity": 2.5,
+      "Ventricular_PW_ms": 1,
+      "VRP_ms": 320,
+      "Rate Smoothing": 0,
+      "Hysteresis": "Off"
+    },
+    "AAI": {
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 1,
+      "Atrial Sensitivity": 0.75,
+      "ARP_ms": 250,
+      "Rate Smoothing": 0,
+      "Hysteresis": "Off"
+    },
+    "AAIR": {
+      "LRL_ppm": 83,
+      "URL_ppm": 100,
+      "Atrial_Amp_V": 2.3,
+      "Atrial_PW_ms": 16,
+      "Atrial Sensitivity": 4.5,
+      "ARP_ms": 350,
+      "Rate Smoothing": 6,
+      "Reaction Time": 30,
+      "Response Factor": 8,
+      "Recovery Time": 6,
+      "Activity Threshold": "Low",
+      "Hysteresis": "Track LRL"
+    },
+    "VOO": {
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Ventricular_Amp_V": 3.5,
+      "Ventricular_PW_ms": 4
+    }
   },
   "Ricky": {
-    "LRL_ppm": 140,
-    "URL_ppm": 150,
-    "Atrial_Amp_V": 3.5,
-    "Ventricular_Amp_V": 3.5,
-    "Atrial_PW_ms": 1,
-    "Atrial Sensitivity": 6.0,
-    "Ventricular Sensitivity": 10.0,
-    "Ventricular_PW_ms": 1,
-    "VRP_ms": 320,
-    "ARP_ms": 250,
-    "Rate Smoothing": 21,
-    "Reaction Time": 30,
-    "Response Factor": 4,
-    "Recovery Time": 12,
-    "Activity Threshold": "V-Low",
-    "Hysteresis": "Track LRL"
+    "VOO": {
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Ventricular_Amp_V": 3.5,
+      "Ventricular_PW_ms": 1
+    },
+    "VVIR": {
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Ventricular_Amp_V": 3.5,
+      "Ventricular Sensitivity": 2.5,
+      "Ventricular_PW_ms": 1,
+      "VRP_ms": 320,
+      "Rate Smoothing": 0,
+      "Reaction Time": 30,
+      "Response Factor": 8,
+      "Recovery Time": 5,
+      "Activity Threshold": "V-Low",
+      "Hysteresis": "Track LRL"
+    }
+  },
+  "pop": {
+    "AAI": {
+      "LRL_ppm": 52,
+      "URL_ppm": 55,
+      "Atrial_Amp_V": 4.5,
+      "Atrial_PW_ms": 15,
+      "Atrial Sensitivity": 5.0,
+      "ARP_ms": 250,
+      "Rate Smoothing": 0,
+      "Hysteresis": "Off"
+    },
+    "VOO": {
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Ventricular_Amp_V": 4.0,
+      "Ventricular_PW_ms": 1
+    },
+    "AOO": {
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 1
+    },
+    "AAIR": {
+      "LRL_ppm": 30,
+      "URL_ppm": 60,
+      "Atrial_Amp_V": 1.1,
+      "Atrial_PW_ms": 1,
+      "Atrial Sensitivity": 0.75,
+      "ARP_ms": 250,
+      "Rate Smoothing": 0,
+      "Reaction Time": 30,
+      "Response Factor": 8,
+      "Recovery Time": 5,
+      "Activity Threshold": "Med",
+      "Hysteresis": "Off"
+    },
+    "VVIR": {
+      "LRL_ppm": 71,
+      "URL_ppm": 120,
+      "Ventricular_Amp_V": 3.0,
+      "Ventricular Sensitivity": 2.5,
+      "Ventricular_PW_ms": 1,
+      "VRP_ms": 320,
+      "Rate Smoothing": 0,
+      "Reaction Time": 30,
+      "Response Factor": 1,
+      "Recovery Time": 5,
+      "Activity Threshold": "Low",
+      "Hysteresis": "Track LRL"
+    }
   }
 }

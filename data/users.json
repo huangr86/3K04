@@ -7,6 +7,10 @@
     {
       "name": "bob",
       "pw": "bob"
+    },
+    {
+      "name": "pop",
+      "pw": "pop"
     }
   ]
 }

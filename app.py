@@ -3,14 +3,45 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-"""
-    "Maximum_Sensor_Rate":{"label":"Maximum_Sensor_Rate","unit":"ppm","type":"int",
-                            "min":50,"max":175,
-                             "modes": ["AOOR", "AAIR", "VOOR", "VVIR"]},
-    "Rate Smoothing":     {"label":"Rate Smoothing","unit":"%","type":"int", "allowed": [0, 3, 6, 9, 12, 15, 18, 21, 25],
-                            "modes": ["AAI", "AAIR", "VVI", "VVIR"] }
+from uart import init_uart, send_params
 
-"""
+from storage import (
+    ensure_files,
+    load_users,
+    save_users,
+    load_user_params,
+    save_user_params,
+    load_param_config
+)
+
+
+MODE_MAP = {
+        "AOO": 0x0,
+        "VOO": 0x1,
+        "AAI": 0x2,
+        "VVI": 0x3,
+        "AOOR": 0x4,
+        "VOOR": 0x5,
+        "AAIR": 0x6,
+        "VVIR": 0x7
+}
+
+# Activity Threshold → 0–6
+ACTIVITY_THRESHOLD_MAP = {
+    "V-Low": 0,
+    "Low": 1,
+    "Med-Low": 2,
+    "Med": 3,
+    "Med-High": 4,
+    "High": 5,
+    "V-High": 6
+}
+
+# Hysteresis → 0–1
+HYSTERESIS_MAP = {
+    "Off": 0,
+    "Track LRL": 1
+}
 
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
@@ -19,56 +50,10 @@ USERS_JSON   = os.path.join(DATA_DIR, "users.json")
 PARAMS_JSON  = os.path.join(DATA_DIR, "params.json") 
 USER_PARAMS_JSON = os.path.join(DATA_DIR, "user_params.json")
 
-def ensure_files():
-    """Create data/ and tiny JSON files if missing."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(USERS_JSON):
-        with open(USERS_JSON, "w") as f:
-            json.dump({"users": []}, f, indent=2)
+#order of parameters
+
+
     
-
-
-def load_users():
-    with open(USERS_JSON, "r") as f:
-        return json.load(f)
-
-def save_users(data):
-    with open(USERS_JSON, "w") as f:
-        json.dump(data, f, indent=2)
-
-def load_user_params():
-    """Return dict of user parameters from JSON file, or {} if none."""
-    if os.path.exists(USER_PARAMS_JSON):
-        with open(USER_PARAMS_JSON, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_user_params(data):
-    """Write updated user parameters dict to JSON file."""
-    with open(USER_PARAMS_JSON, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-
-def load_param_config():
-    with open(PARAMS_JSON, "r") as f:
-        cfg = json.load(f)
-
-    schema_raw = cfg.get("schema", {})
-    defaults   = cfg.get("defaults", {})
-    modes  = cfg.get("modes", [])
-    
-    type_map = {"int": int, "float": float}
-
-    schema = {}
-    for key, meta in schema_raw.items():
-        m = dict(meta)                      
-        m["type"] = type_map.get(m.get("type", "int"), int)  
-        schema[key] = m
-
-    return schema, defaults, modes
-
-
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -234,6 +219,9 @@ class MonitorView(ttk.Frame):
         ttk.Label(right, text="Mode:").pack(side="left", padx=(0, 6), pady=8)
         self.PARAM_SCHEMA, self.defaults, self.modes = load_param_config()
 
+        #Order of parameters for UART
+        self.PARAM_ORDER = list(self.PARAM_SCHEMA.keys())
+
         self.mode_cb = ttk.Combobox(
             right,
             values=self.modes,
@@ -322,6 +310,8 @@ class MonitorView(ttk.Frame):
 
                 slider_widget = tk.Scale(
                     params,
+                    label="",
+                    showvalue=0,
                     from_=0,
                     to=len(allowed_vals) - 1,
                     orient="horizontal",
@@ -350,7 +340,9 @@ class MonitorView(ttk.Frame):
         buttons_row_frame.grid(row=row_index + 1, column=0, columnspan=2, pady=(12, 0))
 
         ttk.Button(buttons_row_frame, text="Save", command=self.on_save).pack(side="left", padx=4)
+        ttk.Button(buttons_row_frame, text="Send", command=self.on_send).pack(side="left", padx=4)
         ttk.Button(buttons_row_frame, text="Reset Defaults", command=self.on_reset).pack(side="left", padx=4)
+
 
         #Display for the graphs (Deliverable_2 implementation)
         right_panel = ttk.Frame(body, padding=16, relief="groove")
@@ -378,6 +370,19 @@ class MonitorView(ttk.Frame):
                 for w in widgets:
                     if w is not None:
                         w.grid_remove()
+
+            saved = load_user_params().get(self.app.current_user, {}).get(mode)
+
+            if saved:
+                for k, v in saved.items():
+                    if k in self.vars:
+                        self.vars[k].set(str(v))
+            else:
+                # load defaults for this mode
+                for k, v in self.defaults.items():
+                    meta = self.PARAM_SCHEMA[k]
+                    if mode in meta.get("modes", []):
+                        self.vars[k].set(str(v))
 
     
     def on_set_device(self):
@@ -502,6 +507,12 @@ class MonitorView(ttk.Frame):
 
     def _entry_changed(self, key, slider):
         raw = self.vars[key].get()
+
+        # 1. Ignore incomplete or mid-typing inputs
+        if raw == "" or raw.endswith(".") or raw.startswith("."):
+            return
+
+        # If the string isn't a clean float, ignore
         try:
             v = float(raw)
         except ValueError:
@@ -512,9 +523,17 @@ class MonitorView(ttk.Frame):
         if not allowed:
             return
 
-        # find the nearest allowed value
-        nearest_idx = min(range(len(allowed)), key=lambda i: abs(allowed[i] - v))
-        slider.set(nearest_idx)
+        # 2. Prevent snapping: only update slider if the float matches EXACT allowed value
+        #    "3" → float(3.0) → allowed contains 3.0 → but we should NOT snap on "3"
+        #    Therefore: ensure the *string* matches the exact allowed representation
+        allowed_strs = [str(a) for a in allowed]
+
+        if raw not in allowed_strs:
+            return
+
+        # 3. Now safe to update slider
+        idx = allowed_strs.index(raw)
+        slider.set(idx)
 
 
             
@@ -527,13 +546,24 @@ class MonitorView(ttk.Frame):
             messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
             return
         
-        data = load_user_params()
+        param_config = load_user_params()
         username = self.app.current_user
-        data[username] = clean
-        save_user_params(data)
+        mode = self.mode_cb.get()
+
+        if username not in param_config:
+            param_config[username] = {}
+
+        filtered = {}
+        for key, meta in self.PARAM_SCHEMA.items():
+            if mode in meta.get("modes", []):     # only parameters used by this mode
+                filtered[key] = clean[key]
+
+
+        param_config[username][mode] = filtered
+        save_user_params(param_config)
 
         #Clean parameters will be used in Deliverable 2
-        self.app.status_var.set(f"Comms: idle  |  parameters saved for {username}")
+        self.app.status_var.set(f"Comms: idle  |  parameters saved for {username} ({mode})")
 
     def on_reset(self):
         #Resets all parameters to defaults from params.json
@@ -543,6 +573,56 @@ class MonitorView(ttk.Frame):
     def on_logout(self):
         self.app.status_var.set(f"Comms: idle")
         self.app.show_view(self.app.login_view)
+
+
+    def on_send(self):
+        # 1. Validate parameters
+        clean, errors = self._parse_and_validate()
+        if errors:
+            messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
+            return
+
+        mode = self.mode_cb.get()
+
+    
+        # 2. Map mode to 4-bit encoding
+        mode_byte = MODE_MAP.get(mode, 0x0)  # fallback to 0x0 if mode not found
+
+        # 3. Build packet dictionary in fixed order
+        packet_params = {}
+        for key in self.PARAM_ORDER:
+            meta = self.PARAM_SCHEMA[key]
+            if mode in meta.get("modes", []):
+                value = clean.get(key, 0)
+            else:
+                value = 0  # unused param → 0
+
+            # Scale floats to integer for UART (×100)
+            if meta["type"] == float:
+                value = int(round(value * 100))
+
+            if key == "Activity Threshold":
+                value = ACTIVITY_THRESHOLD_MAP.get(value, 0)
+            elif key == "Hysteresis":
+                value = HYSTERESIS_MAP.get(value, 0)
+
+
+            packet_params[key] = value
+
+        # 4. Ensure UART device is set
+        if not self.app.device_id:
+            messagebox.showwarning("No Device", "Set a Device ID before sending.")
+            return
+
+        # 5. Send over UART
+        try:
+            #ser = init_uart()  # open UART port
+            send_params(packet_params, mode_byte)  # pass mode & packet
+            #ser.close()
+            self.app.status_var.set(f"Comms: sent to {self.app.device_id}")
+        except Exception as e:
+            messagebox.showerror("UART Error", f"Failed to send parameters:\n{e}")
+
 
         
 
