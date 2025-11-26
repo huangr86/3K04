@@ -1,13 +1,17 @@
 import serial
 import struct
 
-START_BYTE = 0xAA
-SET_BYTE = 0xAA
-RECEIVE_BYTE = 0x00
+# Protocol bytes chosen to match the Simulink / Stateflow chart:
+#   Rx(1) == hex2dec('16')  -> START_BYTE
+#   Rx(2) == hex2dec('55')  -> SET / write command
+#   Rx(2) == hex2dec('22')  -> RECEIVE / read command
+START_BYTE   = 0x16
+SET_BYTE     = 0x55
+RECEIVE_BYTE = 0x22
 
 
-def init_uart(port="COM5", baudrate=9600, timeout=1):
-
+def init_uart(port: str = "COM5", baudrate: int = 9600, timeout: float = 1.0) -> serial.Serial:
+    """Open and return a configured UART port."""
     ser = serial.Serial(
         port=port,
         baudrate=baudrate,
@@ -18,154 +22,132 @@ def init_uart(port="COM5", baudrate=9600, timeout=1):
         write_timeout=timeout,
     )
 
-    if ser.is_open:
-        print(f"UART initialized on {port} at {baudrate} baud.")
-    else:
+    if not ser.is_open:
         ser.open()
-        print(f"UART opened on {port} at {baudrate} baud.")
 
+    print(f"UART initialized on {ser.port} at {baudrate} baud.")
     return ser
 
 
+def _encode_param_values(packet_params) -> list:
+    """Convert ordered dict of param values into a list of 16-bit ints."""
+    values = []
+    for v in packet_params.values():
+        v_int = int(v) & 0xFFFF
+        values.append(v_int)
+    return values
 
-def send_params(ser, packet_params, mode_byte):
+
+def send_params(ser: serial.Serial, packet_params: dict, mode_byte: int) -> None:
+    """Send full parameter packet.
+
+    Packet format on the wire:
+        [START_BYTE, SET_BYTE, MODE_BYTE,
+         p1_hi, p1_lo, p2_hi, p2_lo, ..., pN_hi, pN_lo]
+
+    - MODE_BYTE is the raw mode index 0..7 (no nibble repetition).
+    - Each parameter is sent as a big-endian 16-bit unsigned integer.
     """
-    Test function to print the UART packet instead of sending.
-    packet_params: dict of parameters in fixed order
-    mode: string, e.g., "VOO"
-    """
+    mode_byte = int(mode_byte) & 0xFF
+    param_words = _encode_param_values(packet_params)
 
-    # Example: map mode string to 4-bit integer (adjust to your encoding)
-
-
-    # Mode byte: 4-bit repeated
-    mode_byte = (mode_byte << 4) | mode_byte
-
-    print(f"(mode byte: {mode_byte:08b})")
-
-    values = [START_BYTE, SET_BYTE,mode_byte] + list(packet_params.values()) #append the mode byte to the front of the parameter data
-    fmt = ">BBB" + "H"*len(packet_params)  #16-bit per parameter big-endian MSB first
-    packet = struct.pack(fmt, *values)
-
-    # Print simulated UART packet
-    print("Simulated UART packet (hex):", packet.hex())
-    print(f"(mode byte: {mode_byte:08b})")
-    print("Parameters (in order):")
-    for k, v in packet_params.items():
-        print(f"  {k}: {v}")
-
-
-    # ---- SEND OVER UART ----
-    ser.write(packet)
-    ser.flush()
-
-    print("Sent UART packet:", packet.hex())
-
-
-
-def receive_params(ser, num_params, start_byte=START_BYTE, receive_byte=RECEIVE_BYTE):
-    """
-    Request and receive a packet from the device.
-    Protocol:
-    1. Send [START_BYTE, RECEIVE_BYTE] to request a response.
-    2. Wait for the response: [START_BYTE, SET_BYTE, MODE_BYTE, PARAM1, PARAM2...]
-    """
-    # Step 1: Send the receive request
-    request_packet = bytes([start_byte, receive_byte])
-    ser.write(request_packet)
-    ser.flush()
-    print(f"Sent receive request: {request_packet.hex()}")
-
-    # Step 2: Read response packet
-    packet_size = 3 + 2*num_params  # START + SET + MODE + N*2 bytes
-    raw = ser.read(packet_size)
-
-    if len(raw) < packet_size:
-        print(f"Receive timeout: expected {packet_size} bytes, got {len(raw)}")
-        return None
-
-    print("Received UART packet (hex):", raw.hex())
-
-    # Step 3: Unpack
-    fmt = ">BBB" + "H"*num_params
-    unpacked = struct.unpack(fmt, raw)
-
-    start, set_byte, mode_byte, *params = unpacked
-
-    print(f"Decoded START_BYTE: {start:02X}")
-    print(f"Decoded SET_BYTE: {set_byte:02X}")
-    print(f"Decoded MODE_BYTE: {mode_byte:02X}")
-    print("Decoded PARAMS:", params)
-
-    return start, set_byte, mode_byte, params
-
-
-
-#test send_mode
-def send_mode_byte(ser, mode_byte):
-    """
-    Elementary test function to send only a single mode byte
-    with START_BYTE and SET_BYTE header.
-    """
-    # Mode byte: 4-bit repeated
-    mode_byte = (mode_byte << 4) | mode_byte
-    print(f"(mode byte: {mode_byte:08b})")
-
-    # Build values: START_BYTE, SET_BYTE, MODE_BYTE only
+    # Build header
     values = [START_BYTE, SET_BYTE, mode_byte]
 
-    # Format: 3 bytes (B = 1 byte each)
-    fmt = ">BBB"
-    packet = struct.pack(fmt, *values)
+    # Append parameters as bytes (big-endian)
+    for w in param_words:
+        hi = (w >> 8) & 0xFF
+        lo = w & 0xFF
+        values.extend([hi, lo])
 
-    # Debug print
-    print("Simulated UART packet (hex):", packet.hex())
-    print(f"(mode byte: {mode_byte:08b})")
+    packet = bytes(values)
 
-    # Send over UART
+    print("TX (send_params):", packet.hex(" "))
     ser.write(packet)
     ser.flush()
-    print("Sent UART packet:", packet.hex())
 
 
-#test_receive mode
-def receive_one_param_byte(ser):
+def receive_params(ser: serial.Serial, num_params: int):
+    """Request a full parameter packet and decode it.
+
+    Sends:   [START_BYTE, RECEIVE_BYTE]
+    Expects: [START_BYTE, SET_BYTE, MODE_BYTE,
+              p1_hi, p1_lo, ..., pN_hi, pN_lo]
     """
-    Elementary test function to request a packet and only read the first parameter byte.
-    Protocol:
-    1. Send [START_BYTE, RECEIVE_BYTE] to request data.
-    2. Wait for the response: [START_BYTE, SET_BYTE, MODE_BYTE, PARAM_BYTE, ...]
-    3. Return only the first parameter byte.
-    """
-    # Step 1: send receive request
+    # Send request
     request_packet = bytes([START_BYTE, RECEIVE_BYTE])
+    print("TX (receive_params request):", request_packet.hex(" "))
     ser.write(request_packet)
     ser.flush()
-    print(f"Sent receive request: {request_packet.hex()}")
 
-    # Step 2: read response (header + 1 parameter byte)
-    # Header = 3 bytes (START, SET, MODE) + 1 byte parameter
-    raw = ser.read(4)  # 3 header bytes + 1 payload byte
+    # 3 header bytes + 2 bytes per parameter
+    expected_size = 3 + 2 * num_params
+    raw = ser.read(expected_size)
 
-    if len(raw) < 4:
-        print(f"Receive timeout: expected 4 bytes, got {len(raw)}")
+    if len(raw) < expected_size:
+        print(
+            f"RX timeout in receive_params: expected {expected_size} bytes, "
+            f"got {len(raw)} ({raw.hex(' ')})"
+        )
         return None
 
-    print("Received raw packet (hex):", raw.hex())
+    print("RX (receive_params raw):", raw.hex(" "))
 
-    # Step 3: unpack header + first parameter byte
-    start, set_byte, mode_byte, param_byte = struct.unpack(">BBB B", raw)
-    print(f"START_BYTE: {start:02X}, SET_BYTE: {set_byte:02X}, MODE_BYTE: {mode_byte:02X}")
-    print(f"First PARAM byte: {param_byte:02X} ({param_byte})")
+    # Decode
+    start = raw[0]
+    cmd = raw[1]
+    mode = raw[2]
+    params = []
+    for i in range(num_params):
+        hi = raw[3 + 2 * i]
+        lo = raw[4 + 2 * i]
+        params.append((hi << 8) | lo)
 
-    return param_byte
+    print(f"Decoded header: start={start:02X}, cmd={cmd:02X}, mode={mode:02X}")
+    print("Decoded params:", params)
+    return start, cmd, mode, params
 
 
-if __name__ == "__main__":
-    import json
-    # Load parameters from a JSON file
-    with open("params.json", "r") as f:
-        data = json.load(f)
+def send_mode_byte(ser: serial.Serial, mode_byte: int) -> None:
+    """Send only the mode byte (no parameters).
 
-    ser = init_uart()
-    send_params(ser, data)
+    Packet format:
+        [START_BYTE, SET_BYTE, MODE_BYTE]
+    """
+    mode_byte = int(mode_byte) & 0xFF
+    packet = bytes([START_BYTE, SET_BYTE, mode_byte])
+    print("TX (send_mode_byte):", packet.hex(" "))
+    ser.write(packet)
+    ser.flush()
+
+
+def receive_one_param_byte(ser: serial.Serial):
+    """Request data and return the first parameter byte.
+
+    This is a simple debug helper that assumes the device answers with at
+    least 4 bytes:
+
+        [START_BYTE, SET_BYTE, MODE_BYTE, first_param_byte, ...]
+    """
+    # Send request header
+    request = bytes([START_BYTE, RECEIVE_BYTE])
+    print("TX (receive_one_param_byte request):", request.hex(" "))
+    ser.write(request)
+    ser.flush()
+
+    # Read 4 bytes: 3-byte header + first param byte
+    raw = ser.read(4)
+
+    if len(raw) < 4:
+        print(
+            f"RX timeout in receive_one_param_byte: expected 4 bytes, "
+            f"got {len(raw)} ({raw.hex(' ')})"
+        )
+        return None
+
+    print("RX (receive_one_param_byte raw):", raw.hex(" "))
+
+    start, cmd, mode, param0 = raw[0], raw[1], raw[2], raw[3]
+    print(f"Decoded header: start={start:02X}, cmd={cmd:02X}, mode={mode:02X}")
+    print(f"First param byte: {param0:02X} ({param0})")
+    return param0

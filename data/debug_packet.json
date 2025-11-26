@@ -1,0 +1,27 @@
+{
+  "clean_values": {
+    "LRL_ppm": 140,
+    "URL_ppm": 150,
+    "Atrial_Amp_V": 3.5,
+    "Atrial_PW_ms": 0.4,
+    "Ventricular_Amp_V": 3.5,
+    "Ventricular_PW_ms": 0.4,
+    "VRP_ms": 320,
+    "ARP_ms": 250
+  },
+  "packet_hex": "8C 00 96 00 23 00 04 00 40 01 FA 00",
+  "packet_decimal": [
+    140,
+    0,
+    150,
+    0,
+    35,
+    0,
+    4,
+    0,
+    64,
+    1,
+    250,
+    0
+  ]
+}
