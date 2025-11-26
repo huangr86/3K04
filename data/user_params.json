@@ -35,10 +35,16 @@
       "Hysteresis": "Track LRL"
     },
     "VOO": {
+      "LRL_ppm": 81,
+      "URL_ppm": 175,
+      "Ventricular_Amp_V": 1.2,
+      "Ventricular_PW_ms": 4
+    },
+    "AOO": {
       "LRL_ppm": 60,
       "URL_ppm": 120,
-      "Ventricular_Amp_V": 3.5,
-      "Ventricular_PW_ms": 4
+      "Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 1
     }
   },
   "Ricky": {

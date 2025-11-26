@@ -3,7 +3,7 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from uart import init_uart, send_params
+from uart import init_uart, send_params, send_mode_byte
 
 from storage import (
     ensure_files,
@@ -341,6 +341,7 @@ class MonitorView(ttk.Frame):
 
         ttk.Button(buttons_row_frame, text="Save", command=self.on_save).pack(side="left", padx=4)
         ttk.Button(buttons_row_frame, text="Send", command=self.on_send).pack(side="left", padx=4)
+        ttk.Button(buttons_row_frame, text="Receive", command=self.on_receive).pack(side="left", padx=4)
         ttk.Button(buttons_row_frame, text="Reset Defaults", command=self.on_reset).pack(side="left", padx=4)
 
 
@@ -616,12 +617,33 @@ class MonitorView(ttk.Frame):
 
         # 5. Send over UART
         try:
-            #ser = init_uart()  # open UART port
-            send_params(packet_params, mode_byte)  # pass mode & packet
-            #ser.close()
+            ser = init_uart()  # open UART port
+            #send_params(ser, packet_params, mode_byte)  # pass mode & packet
+            send_mode_byte(ser, mode_byte)
+            ser.close()
             self.app.status_var.set(f"Comms: sent to {self.app.device_id}")
         except Exception as e:
             messagebox.showerror("UART Error", f"Failed to send parameters:\n{e}")
+
+    def on_receive(self):
+        if not self.app.device_id:
+            messagebox.showwarning("No Device", "Set a Device ID before receiving.")
+            return
+
+        try:
+            ser = init_uart()
+            from uart import receive_one_param_byte  # import the test function
+            byte = receive_one_param_byte(ser)
+            ser.close()
+
+            if byte is not None:
+                self.app.status_var.set(f"Comms: received byte {byte:02X} from {self.app.device_id}")
+            else:
+                self.app.status_var.set(f"Comms: receive timeout from {self.app.device_id}")
+
+        except Exception as e:
+            messagebox.showerror("UART Error", f"Failed to receive byte:\n{e}")
+
 
 
         
