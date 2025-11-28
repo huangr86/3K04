@@ -67,6 +67,15 @@
       "Recovery Time": 5,
       "Activity Threshold": "V-Low",
       "Hysteresis": "Track LRL"
+    },
+    "AAI": {
+      "LRL_ppm": 100,
+      "URL_ppm": 140,
+      "Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 0.4,
+      "Atrial Sensitivity": 4.0,
+      "ARP_ms": 280,
+      "Hysteresis": "Off"
     }
   },
   "pop": {
