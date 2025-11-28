@@ -66,56 +66,101 @@ def send_params(ser, packet_params, mode_byte):
 
 
 def send_params_test(ser, packet_params, mode_byte):
-    """
-    packet_params: dict containing parameters
-    mode_byte: int (0–15)
-    """
 
-    # ---- HARD-CODED PARAMETER ORDER ----
+    # ---- Parameter order with sizes ----
     PARAM_ORDER = [
-        "LRL",
-        "Atrial_PW_ms",
-        "Ventricular_PW_ms",
-        "ARP_ms",
-        "VRP_ms",
-        "Sense_Ventricular_Amp_V",
-        "Sense_Atrial_Amp_V",
-        "Pace_Atrial_Amp_V",
-        "Pace_Ventricular_Amp_V"
-        
+        ("LRL_ppm", "H"),                  # 2 bytes
+        ("Atrial_PW_ms", "B"),             # 1 byte
+        ("Ventricular_PW_ms", "B"),        # 1 byte
+        ("ARP_ms", "H"),                   # 2 bytes
+        ("VRP_ms", "H"),                   # 2 bytes
+        ("Sense_Ventricular_Amp_V", "B"),  # 1 byte
+        ("Sense_Atrial_Amp_V", "B"),       # 1 byte
+        ("Pace_Atrial_Amp_V", "B"),        # 1 byte
+        ("Pace_Ventricular_Amp_V", "B"),   # 1 byte
     ]
 
     # Mode byte duplicated into upper + lower nibble
     mode_byte = (mode_byte << 4) | mode_byte
     print(f"(mode byte: {mode_byte:08b})")
 
-    # Build ordered list of parameter values
+    # ---- Build parameter list according to mixed widths ----
     ordered_values = []
-    for name in PARAM_ORDER:
+    fmt_params = ""  # will hold something like "HBBHHBBB"
+
+    for name, code in PARAM_ORDER:
         if name not in packet_params:
             raise KeyError(f"Missing parameter '{name}' in packet_params")
-        ordered_values.append(packet_params[name])
 
-    # Build UART packet
+        ordered_values.append(packet_params[name])
+        fmt_params += code
+
+    # Full format string: start, set, mode, then parameters
+    fmt = ">BBB" + fmt_params
+
+    # Build packet
     values = [START_BYTE, SET_BYTE, mode_byte] + ordered_values
-    fmt = ">BBB" + "H" * len(PARAM_ORDER)
     packet = struct.pack(fmt, *values)
 
     print("Simulated UART packet:", packet.hex())
+    print("Sent UART packet:", packet.hex())
 
-    print("Parameters (HARD-CODED order):")
-    for name in PARAM_ORDER:
-        print(f"  {name}: {packet_params[name]}")
-
-    # Send over UART
+    # Send packet
     ser.write(packet)
     ser.flush()
 
+    # ------------------ RECEIVE --------------------------
+    time.sleep(1)
+
+def send_params_test(ser, packet_params, mode_byte):
+
+    # ---- Parameter order with sizes ----
+    PARAM_ORDER = [
+        ("LRL_ppm", "H"),                  # 2 bytes
+        ("Atrial_PW_ms", "B"),             # 1 byte
+        ("Ventricular_PW_ms", "B"),        # 1 byte
+        ("ARP_ms", "H"),                   # 2 bytes
+        ("VRP_ms", "H"),                   # 2 bytes
+        ("Sense_Ventricular_Amp_V", "B"),  # 1 byte
+        ("Sense_Atrial_Amp_V", "B"),       # 1 byte
+        ("Pace_Atrial_Amp_V", "B"),        # 1 byte
+        ("Pace_Ventricular_Amp_V", "B"),   # 1 byte
+    ]
+
+    # Mode byte duplicated into upper + lower nibble
+    mode_byte = (mode_byte << 4) | mode_byte
+    print(f"(mode byte: {mode_byte:08b})")
+
+    # ---- Build parameter list according to mixed widths ----
+    ordered_values = []
+    fmt_params = ""  # will hold something like "HBBHHBBB"
+
+    for name, code in PARAM_ORDER:
+        if name not in packet_params:
+            raise KeyError(f"Missing parameter '{name}' in packet_params")
+
+        ordered_values.append(packet_params[name])
+        fmt_params += code
+
+    # Full format string: start, set, mode, then parameters
+    fmt = ">BBB" + fmt_params
+
+    # Build packet
+    values = [START_BYTE, SET_BYTE, mode_byte] + ordered_values
+    packet = struct.pack(fmt, *values)
+
+    print("Simulated UART packet:", packet.hex())
     print("Sent UART packet:", packet.hex())
 
+    # Send packet
+    ser.write(packet)
+    ser.flush()
+
+    # ------------------ RECEIVE --------------------------
     time.sleep(1)
-    # --- Simulink returns ONLY: mode + params ---
-    rx_fmt = ">B" + "H" * len(PARAM_ORDER)
+
+    # Simulink returns ONLY: mode + params
+    rx_fmt = ">B" + fmt_params
     expected_len = struct.calcsize(rx_fmt)
 
     rx = ser.read(expected_len)
@@ -125,9 +170,7 @@ def send_params_test(ser, packet_params, mode_byte):
         print("Raw RX:", rx.hex())
         return
 
-    # Decode Simulink response
     unpacked = struct.unpack(rx_fmt, rx)
-
     rx_mode = unpacked[0]
     rx_params = unpacked[1:]
 
@@ -135,9 +178,8 @@ def send_params_test(ser, packet_params, mode_byte):
     print(f"  Mode byte: {rx_mode:08b}")
 
     print("\nReturned Parameters:")
-    for name, value in zip(PARAM_ORDER, rx_params):
+    for (name, _), value in zip(PARAM_ORDER, rx_params):
         print(f"  {name}: {value}")
-
 
 
 
