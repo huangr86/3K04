@@ -626,26 +626,25 @@ class MonitorView(ttk.Frame):
 
     def on_send(self):
         if self.app.serial is None:
-            self.output_area.appendPlainText("Not connected to device.")
+            print("Not connected to device.")
             return
 
         try:
-            uart_send_set_params()
-            self.output_area.appendPlainText("Sent SET PARAMS frame.")
+            uart_send_set_params(self.app.serial)
+            print("Sent SET PARAMS frame.")
         except Exception as e:
-            self.output_area.appendPlainText(f"Send failed: {e}")
-
+            print(f"Send failed: {e}")
 
     def on_receive(self):
         if self.app.serial is None:
-            self.output_area.appendPlainText("Not connected to device.")
+            print("Not connected to device.")
             return
 
         try:
-            uart_send_recv_only()
-            self.output_area.appendPlainText("Sent RECV ONLY frame.")
+            uart_send_recv_only(self.app.serial)
+            print("Sent RECV ONLY frame.")
         except Exception as e:
-            self.output_area.appendPlainText(f"Receive command failed: {e}")
+            print(f"Receive command failed: {e}")
 
 
 
