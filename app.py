@@ -2,8 +2,11 @@ import os
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox
+import threading
 
-from uart import init_uart, send_params, send_mode_byte, send_params_test
+
+from uart import init_uart, uart_send_set_params, uart_send_recv_only, stream_with_echo_and_plot
+
 
 from storage import (
     ensure_files,
@@ -63,6 +66,8 @@ class App(tk.Tk):
         self.title("DCM - Deliverable 1")
         self.geometry("900x600")
         self.minsize(700, 450)
+
+        self.serial = init_uart("COM10", 115200)
 
         self.current_user   = None
         self.device_id      = None    
@@ -340,9 +345,52 @@ class MonitorView(ttk.Frame):
         buttons_row_frame.grid(row=row_index + 1, column=0, columnspan=2, pady=(12, 0))
 
         ttk.Button(buttons_row_frame, text="Save", command=self.on_save).pack(side="left", padx=4)
-        ttk.Button(buttons_row_frame, text="Send", command=self.on_send).pack(side="left", padx=4)
-        ttk.Button(buttons_row_frame, text="Receive", command=self.on_receive).pack(side="left", padx=4)
+
+        self.send_btn = ttk.Button(buttons_row_frame, text="Send", command=self.on_send)
+        self.send_btn.pack(side="left", padx=4)
+
+        self.receive_btn = ttk.Button(buttons_row_frame, text="Receive", command=self.on_receive)
+        self.receive_btn.pack(side="left", padx=4)
+
         ttk.Button(buttons_row_frame, text="Reset Defaults", command=self.on_reset).pack(side="left", padx=4)
+
+        self.egram_enabled = tk.BooleanVar(value=False)
+
+        # Styles for ON/OFF colors
+        style = ttk.Style()
+        style.configure("On.TButton",  foreground="black", background="#28a745")
+        style.map("On.TButton", background=[("active", "#218838")])
+        style.configure("Off.TButton", foreground="black", background="#dd1a1a")
+        style.map("Off.TButton", background=[("active", "#dd1a1a")])
+
+        self.egram_btn = ttk.Button(
+            buttons_row_frame,
+            text="Egram: OFF",
+            style="Off.TButton",
+            command=lambda: (
+                self.egram_enabled.set(not self.egram_enabled.get()),
+                toggle_egram()
+            )
+        )
+        self.egram_btn.pack(side="left", padx=4)
+
+        def toggle_egram():
+            state = self.egram_enabled.get()
+
+            # Change button appearance
+            if state:
+                self.egram_btn.config(text="Egram: ON", style="On.TButton")
+            else:
+                self.egram_btn.config(text="Egram: OFF", style="Off.TButton")
+
+            # Enable/Disable Send + Receive
+            if state:
+                self.send_btn.config(state="disabled")
+                self.receive_btn.config(state="disabled")
+            else:
+                self.send_btn.config(state="normal")
+                self.receive_btn.config(state="normal")
+                
 
 
         #Display for the graphs (Deliverable_2 implementation)
@@ -577,72 +625,29 @@ class MonitorView(ttk.Frame):
 
 
     def on_send(self):
-        # 1. Validate parameters
-        clean, errors = self._parse_and_validate()
-        if errors:
-            messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
+        if self.serial is None:
+            self.output_area.appendPlainText("Not connected to device.")
             return
 
-        mode = self.mode_cb.get()
-
-    
-        # 2. Map mode to 4-bit encoding
-        mode_byte = MODE_MAP.get(mode, 0x0)  # fallback to 0x0 if mode not found
-
-        # 3. Build packet dictionary in fixed order
-        packet_params = {}
-        for key in self.PARAM_ORDER:
-            meta = self.PARAM_SCHEMA[key]
-            if mode in meta.get("modes", []):
-                value = clean.get(key, 0)
-            else:
-                value = 0  # unused param → 0
-
-            # Scale floats to integer for UART (×100)
-            if meta["type"] == float:
-                value = int(round(value * 100))
-
-            if key == "Activity Threshold":
-                value = ACTIVITY_THRESHOLD_MAP.get(value, 0)
-            elif key == "Hysteresis":
-                value = HYSTERESIS_MAP.get(value, 0)
-
-
-            packet_params[key] = value
-
-        # 4. Ensure UART device is set
-        if not self.app.device_id:
-            messagebox.showwarning("No Device", "Set a Device ID before sending.")
-            return
-
-        # 5. Send over UART
+        params = self.get_parameter_data()
         try:
-            ser = init_uart()  # open UART port
-            #send_params(ser, packet_params, mode_byte)  # pass mode & packet
-            send_params_test(ser, packet_params, mode_byte)
-            ser.close()
-            self.app.status_var.set(f"Comms: sent to {self.app.device_id}")
+            uart_send_set_params(params)
+            self.output_area.appendPlainText("Sent SET PARAMS frame.")
         except Exception as e:
-            messagebox.showerror("UART Error", f"Failed to send parameters:\n{e}")
+            self.output_area.appendPlainText(f"Send failed: {e}")
+
 
     def on_receive(self):
-        if not self.app.device_id:
-            messagebox.showwarning("No Device", "Set a Device ID before receiving.")
+        if self.serial is None:
+            self.output_area.appendPlainText("Not connected to device.")
             return
 
         try:
-            ser = init_uart()
-            from uart import receive_one_param_byte  # import the test function
-            byte = receive_one_param_byte(ser)
-            ser.close()
-
-            if byte is not None:
-                self.app.status_var.set(f"Comms: received byte {byte:02X} from {self.app.device_id}")
-            else:
-                self.app.status_var.set(f"Comms: receive timeout from {self.app.device_id}")
-
+            uart_send_recv_only()
+            self.output_area.appendPlainText("Sent RECV ONLY frame.")
         except Exception as e:
-            messagebox.showerror("UART Error", f"Failed to receive byte:\n{e}")
+            self.output_area.appendPlainText(f"Receive command failed: {e}")
+
 
 
 
