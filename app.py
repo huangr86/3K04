@@ -3,7 +3,7 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from uart import init_uart, send_params, send_mode_byte
+from uart import init_uart, send_params, send_mode_byte, send_params_test
 
 from storage import (
     ensure_files,
@@ -619,7 +619,7 @@ class MonitorView(ttk.Frame):
         try:
             ser = init_uart()  # open UART port
             #send_params(ser, packet_params, mode_byte)  # pass mode & packet
-            send_mode_byte(ser, mode_byte)
+            send_params_test(ser, packet_params, mode_byte)
             ser.close()
             self.app.status_var.set(f"Comms: sent to {self.app.device_id}")
         except Exception as e:

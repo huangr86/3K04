@@ -2,12 +2,12 @@ import serial
 import struct
 import time
 
-START_BYTE = 0xAA
-SET_BYTE = 0xAA
-RECEIVE_BYTE = 0x00
+START_BYTE = 0x10
+SET_BYTE = 0x37
+RECEIVE_BYTE = 0x16
 
 
-def init_uart(port="COM5", baudrate=9600, timeout=1):
+def init_uart(port="COM10", baudrate=115200, timeout=1):
 
     ser = serial.Serial(
         port=port,
