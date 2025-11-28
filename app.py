@@ -552,8 +552,8 @@ class MonitorView(ttk.Frame):
                 "Pulse widths must be between 0.1 ms and 1.9 ms.",
             )
             return
-        a_pace_width_code = int(round(a_pw_ms * 10.0))  # 0.1 ms steps
-        v_pace_width_code = int(round(v_pw_ms * 10.0))
+        a_pace_width_code = int(round(a_pw_ms * 100.0))  # 0.1 ms steps
+        v_pace_width_code = int(round(v_pw_ms * 100.0))
 
         # (4) Ventricular sense amplitude in 0.1 mV units (0.25–10.0 mV)
         v_sense_mv = float(get_or_default("Ventricular Sensitivity", 4.0))
@@ -563,7 +563,7 @@ class MonitorView(ttk.Frame):
                 "Ventricular sensitivity must be between 0.25 mV and 10.0 mV.",
             )
             return
-        v_sense_amp_code = int(round(v_sense_mv * 10.0))
+        v_sense_amp_code = int(round(v_sense_mv * 100.0))
 
         # (5) ARP and (6) VRP in ms (150–500 ms)
         ARP_ms = int(round(float(get_or_default("ARP_ms", 250))))
@@ -583,7 +583,7 @@ class MonitorView(ttk.Frame):
                 "Atrial sensitivity must be between 0.25 mV and 10.0 mV.",
             )
             return
-        a_sense_amp_code = int(round(a_sense_mv * 10.0))
+        a_sense_amp_code = int(round(a_sense_mv * 100.0))
 
         # (8) / (9) Ventricular & atrial pace amplitudes in 0.1 V units (0.5–7.0 V)
         v_amp_v = float(get_or_default("Ventricular_Amp_V", 3.5))
@@ -594,8 +594,8 @@ class MonitorView(ttk.Frame):
                 "Pace amplitudes must be between 0.5 V and 7.0 V.",
             )
             return
-        v_pace_amp_code = int(round(v_amp_v * 10.0))
-        a_pace_amp_code = int(round(a_amp_v * 10.0))
+        v_pace_amp_code = int(round(v_amp_v * 100.0))
+        a_pace_amp_code = int(round(a_amp_v * 100.0))
 
         # 3. Ensure a UART device has been chosen
         if not self.app.device_id:
