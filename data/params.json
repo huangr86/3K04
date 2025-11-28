@@ -12,23 +12,23 @@
                             "modes": ["AOO", "VOO", "AAI","VVI", "AOOR", "AAIR", "VOOR", "VVIR"] },
 
     "Pace_Atrial_Amp_V":       {"label":"Pace_Atrial Amplitude","unit":"V","type":"float",
-                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
+                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 5.0, "inc": 0.5 }],
                             "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
 
     "Sense_Atrial_Amp_V":       {"label":"Sense_Atrial Amplitude","unit":"V","type":"float",
-                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
+                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 5.0, "inc": 0.5 }],
                             "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
 
    "Pace_Ventricular_Amp_V":  {"label":"Pace Ventricular Amplitude","unit":"V","type":"float",
-                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
+                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 5.0, "inc": 0.5 }],
                             "modes": ["VOO", "VVI", "VOOR", "VVIR"] },
 
     "Sense_Ventricular_Amp_V":  {"label":"Sense Ventricular Amplitude","unit":"V","type":"float",
-                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
+                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 5.0, "inc": 0.5 }],
                             "modes": ["VOO", "VVI", "VOOR", "VVIR"] },
 
     "Atrial_PW_ms":       {"label":"Atrial Pulse Width","unit":"ms","type":"float",
-                            "ranges" : [   { "min": 0.1, "max": 1.9, "inc": 0.1 }],
+                            "ranges" : [   { "min": 0.1, "max": 30, "inc": 0.1 }],
                             "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
 
     "Atrial Sensitivity":  {"label":"Atrial Sensitivity","unit":"mv","type":"float",
@@ -40,7 +40,7 @@
                             "modes": ["VVI", "VVIR"] },
 
     "Ventricular_PW_ms":  {"label":"Ventricular Pulse Width","unit":"ms","type":"float",
-                            "ranges" : [  { "min": 0.1, "max": 1.9, "inc": 0.1 }],
+                            "ranges" : [  { "min": 0.1, "max": 30, "inc": 0.1 }],
                             "modes": ["VOO", "VVI", "VOOR", "VVIR"] },  
 
     "VRP_ms":             {"label":"VRP (Ventricular Refr. P.)","unit":"ms","type":"int",
@@ -81,11 +81,11 @@
   "defaults": {
     "LRL_ppm": 60,
     "URL_ppm": 120,
-    "Pace_Atrial_Amp_V": 7,
-    "Sense_Atrial_Amp_V": 7,
+    "Pace_Atrial_Amp_V": 2.0,
+    "Sense_Atrial_Amp_V": 2.0,
     "Atrial_PW_ms": 1,
-    "Pace_Ventricular_Amp_V": 7,
-    "Sense_Ventricular_Amp_V": 7,
+    "Pace_Ventricular_Amp_V": 2.0,
+    "Sense_Ventricular_Amp_V": 2.0,
     "Ventricular_PW_ms": 1,
     "VRP_ms": 320,
     "ARP_ms": 250,
