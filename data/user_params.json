@@ -13,39 +13,42 @@
     "AAI": {
       "LRL_ppm": 60,
       "URL_ppm": 120,
-      "Atrial_Amp_V": 3.5,
-      "Atrial_PW_ms": 1,
+      "Pace_Atrial_Amp_V": 3.5,
+      "Sense_Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 1.0,
       "Atrial Sensitivity": 0.75,
       "ARP_ms": 250,
       "Rate Smoothing": 0,
       "Hysteresis": "Off"
     },
     "AAIR": {
-      "LRL_ppm": 83,
-      "URL_ppm": 100,
-      "Atrial_Amp_V": 2.3,
-      "Atrial_PW_ms": 16,
-      "Atrial Sensitivity": 4.5,
-      "ARP_ms": 350,
-      "Rate Smoothing": 6,
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
+      "Pace_Atrial_Amp_V": 3.5,
+      "Sense_Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 1.0,
+      "Atrial Sensitivity": 0.75,
+      "ARP_ms": 250,
+      "Rate Smoothing": 0,
       "Reaction Time": 30,
       "Response Factor": 8,
-      "Recovery Time": 6,
-      "Activity Threshold": "Low",
-      "Hysteresis": "Track LRL"
+      "Recovery Time": 5,
+      "Activity Threshold": "Med",
+      "Hysteresis": "Off"
     },
     "VOO": {
-      "LRL_ppm": 1456,
-      "URL_ppm": 1625,
+      "LRL_ppm": 60,
+      "URL_ppm": 120,
       "Pace_Ventricular_Amp_V": 3.5,
       "Sense_Ventricular_Amp_V": 3.5,
-      "Ventricular_PW_ms": 1
+      "Ventricular_PW_ms": 1.0
     },
     "AOO": {
       "LRL_ppm": 60,
       "URL_ppm": 120,
-      "Atrial_Amp_V": 3.5,
-      "Atrial_PW_ms": 1
+      "Pace_Atrial_Amp_V": 3.5,
+      "Sense_Atrial_Amp_V": 3.5,
+      "Atrial_PW_ms": 1.0
     }
   },
   "Ricky": {

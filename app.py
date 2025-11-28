@@ -4,9 +4,16 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from uart import init_uart, uart_send_set_params, uart_send_recv_only, stream_with_echo_and_plot
-
+from uart import (
+    init_uart,
+    uart_send_set_params,
+    uart_send_recv_only,
+    stream_egram,
+    stop_stream,
+)
 
 from storage import (
     ensure_files,
@@ -17,16 +24,15 @@ from storage import (
     load_param_config
 )
 
-
 MODE_MAP = {
-        "AOO": 0x0,
-        "VOO": 0x1,
-        "AAI": 0x2,
-        "VVI": 0x3,
-        "AOOR": 0x4,
-        "VOOR": 0x5,
-        "AAIR": 0x6,
-        "VVIR": 0x7
+    "AOO": 0x0,
+    "VOO": 0x1,
+    "AAI": 0x2,
+    "VVI": 0x3,
+    "AOOR": 0x4,
+    "VOOR": 0x5,
+    "AAIR": 0x6,
+    "VVIR": 0x7
 }
 
 # Activity Threshold → 0–6
@@ -46,48 +52,44 @@ HYSTERESIS_MAP = {
     "Track LRL": 1
 }
 
-
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR     = os.path.join(BASE_DIR, "data")
 USERS_JSON   = os.path.join(DATA_DIR, "users.json")
-PARAMS_JSON  = os.path.join(DATA_DIR, "params.json") 
+PARAMS_JSON  = os.path.join(DATA_DIR, "params.json")
 USER_PARAMS_JSON = os.path.join(DATA_DIR, "user_params.json")
 
-#order of parameters
 
-
-    
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
         ensure_files()
 
-        self.title("DCM - Deliverable 1")
-        self.geometry("900x600")
-        self.minsize(700, 450)
+        self.title("DCM - Deliverable 2")
+        self.geometry("1100x650")
+        self.minsize(900, 500)
 
+        # Open UART once, share via uart.ser global
         self.serial = init_uart("COM10", 115200)
 
         self.current_user   = None
-        self.device_id      = None    
-        self.prev_device_id = None      
+        self.device_id      = None
+        self.prev_device_id = None
 
-        # variables for status bar
+        # status bar vars
         self.status_var = tk.StringVar(value="Comms: idle")
         self.mode_var   = tk.StringVar(value="Mode: N/A")
 
-        # top status bar for variables
+        # top status bar
         top = ttk.Frame(self, padding=6)
         top.pack(side="top", fill="x")
         ttk.Label(top, textvariable=self.status_var).pack(side="left", padx=8)
         ttk.Label(top, textvariable=self.mode_var).pack(side="left", padx=16)
 
-        # container for screens
+        # container for views
         self.container = ttk.Frame(self, padding=12)
         self.container.pack(side="top", fill="both", expand=True)
 
-        # Different views
         self.login_view   = LoginView(self.container, self)
         self.monitor_view = MonitorView(self.container, self)
 
@@ -103,27 +105,36 @@ class App(tk.Tk):
     def set_mode(self, mode):
         self.mode_var.set(f"Mode: {mode}")
 
-   
     def set_device(self, new_id: str):
         old = self.device_id
         self.prev_device_id = old
         self.device_id = new_id
 
-        # status bar update only if logged in
         user_txt = f"  |  user: {self.current_user}" if self.current_user else ""
         dev_txt  = f"  |  device: {self.device_id}" if self.device_id else ""
         self.status_var.set(f"Comms: idle{user_txt}{dev_txt}")
 
-        # show clear notice on the Monitor view
         if old is None and new_id:
-            self.monitor_view.show_notice(f"Connected to pacemaker: {new_id}", bg="#e6ffea", fg="#0a5c1a")
+            self.monitor_view.show_notice(
+                f"Connected to pacemaker: {new_id}",
+                bg="#e6ffea",
+                fg="#0a5c1a",
+            )
         elif old and new_id and old != new_id:
-            self.monitor_view.show_notice(f"Different pacemaker detected: {new_id} (previous: {old})", bg="#ffe6e6", fg="#700000")
+            self.monitor_view.show_notice(
+                f"Different pacemaker detected: {new_id} (previous: {old})",
+                bg="#ffe6e6",
+                fg="#700000",
+            )
         elif old == new_id:
-            self.monitor_view.show_notice(f"Same pacemaker reconnected: {new_id}", bg="#e8f0fe", fg="#123a89")
+            self.monitor_view.show_notice(
+                f"Same pacemaker reconnected: {new_id}",
+                bg="#e8f0fe",
+                fg="#123a89",
+            )
+
 
 class LoginView(ttk.Frame):
-    
     def __init__(self, parent, app: App):
         super().__init__(parent)
         self.app = app
@@ -131,9 +142,13 @@ class LoginView(ttk.Frame):
         card = ttk.Frame(self, padding=24, relief="groove")
         card.place(relx=0.5, rely=0.5, anchor="center")
 
-        ttk.Label(card, text="Welcome to DCM", font=("TkDefaultFont", 16, "bold")).grid(row=0, column=0, columnspan=3, pady=(0, 12))
-        # Username/password entries
-        ttk.Label(card, text="Username").grid(row=1, column=0, sticky="e", padx=8, pady=6)
+        ttk.Label(
+            card,
+            text="Welcome to DCM",
+            font=("TkDefaultFont", 16, "bold"),
+        ).grid(row=0, column=0, columnspan=3, pady=(0, 12))
+
+        ttk.Label(card, text="Username").grid(row=1, column=0, sticky="e", padx=8, pady=6)g
         self.user_entry = ttk.Entry(card, width=28)
         self.user_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=6)
 
@@ -141,19 +156,21 @@ class LoginView(ttk.Frame):
         self.pass_entry = ttk.Entry(card, width=28, show="*")
         self.pass_entry.grid(row=2, column=1, sticky="ew", padx=8, pady=6)
 
-        # Show password if user desires
         self.show_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(card, text="Show", variable=self.show_var,
-                        command=lambda: self.pass_entry.config(show="" if self.show_var.get() else "*")
-                        ).grid(row=2, column=2, padx=6)
+        ttk.Checkbutton(
+            card,
+            text="Show",
+            variable=self.show_var,
+            command=lambda: self.pass_entry.config(
+                show="" if self.show_var.get() else "*"
+            ),
+        ).grid(row=2, column=2, padx=6)
 
-        # Login/Register buttons
         actions = ttk.Frame(card)
         actions.grid(row=3, column=0, columnspan=3, pady=(12, 0))
         ttk.Button(actions, text="Login", command=self.on_login).pack(side="left", padx=6)
         ttk.Button(actions, text="Register", command=self.on_register).pack(side="left", padx=6)
 
-        #Allows for enter button to be used to submit login.
         card.grid_columnconfigure(1, weight=1)
         self.user_entry.bind("<Return>", lambda e: self.on_login())
         self.pass_entry.bind("<Return>", lambda e: self.on_login())
@@ -167,15 +184,14 @@ class LoginView(ttk.Frame):
 
         name = self.user_entry.get().strip()
         pw   = self.pass_entry.get()
-        #Require both fields or else warning
         if not name or not pw:
             messagebox.showwarning("Missing info", "Enter both username and password")
             return
-        #No registeration of duplicate users.
+
         if any(u["name"] == name for u in users):
             messagebox.showwarning("Exists", "That username already exists")
             return
-        #Saves new user but requires user to login to continue.
+
         users.append({"name": name, "pw": pw})
         save_users({"users": users})
         messagebox.showinfo("Registered", f"User '{name}' registered")
@@ -191,110 +207,104 @@ class LoginView(ttk.Frame):
         if not match:
             messagebox.showerror("Login failed", "Invalid username or password")
             return
-        
+
         self.app.current_user = name
-        #Sets status bar to user ID
         self.app.status_var.set(f"Comms: idle  |  user: {name}")
+
         user_params = load_user_params()
         if name in user_params:
             for k, v in user_params[name].items():
                 if k in self.app.monitor_view.vars:
                     self.app.monitor_view.vars[k].set(str(v))
 
-        #After successful login swap to monitor view
         self.app.show_view(self.app.monitor_view)
 
 
 class MonitorView(ttk.Frame):
- 
     def __init__(self, parent, app: App):
         super().__init__(parent)
         self.app = app
 
-        self.default_mode = "VOO"
+        self.default_mode = "VOOR"  # or whatever default you want
 
         header = ttk.Frame(self)
         header.pack(side="top", fill="x")
-        ttk.Label(header, text="Monitor", font=("TkDefaultFont", 16, "bold")).pack(side="left", padx=12, pady=8)
+        ttk.Label(header, text="Monitor", font=("TkDefaultFont", 16, "bold")).pack(
+            side="left", padx=12, pady=8
+        )
         right = ttk.Frame(header)
         right.pack(side="right")
 
-        #Dropdown menu for mode selection
-        #Loads paramteter data structures/defaults from params.json
+        # Load schema/defaults/modes from params.json
         ttk.Label(right, text="Mode:").pack(side="left", padx=(0, 6), pady=8)
         self.PARAM_SCHEMA, self.defaults, self.modes = load_param_config()
-
-        #Order of parameters for UART
         self.PARAM_ORDER = list(self.PARAM_SCHEMA.keys())
 
         self.mode_cb = ttk.Combobox(
             right,
             values=self.modes,
             state="readonly",
-            width=8
+            width=8,
         )
         self.mode_cb.set("Select mode")
         self.mode_cb.pack(side="left", padx=6, pady=8)
         self.mode_cb.bind("<<ComboboxSelected>>", lambda e: self.on_mode_change())
 
-        # Device ID entry and Set button
         ttk.Label(right, text="Device ID:").pack(side="left", padx=(12, 6), pady=8)
         self.device_var = tk.StringVar()
         ttk.Entry(right, textvariable=self.device_var, width=16).pack(side="left", pady=8)
         ttk.Button(right, text="Set", command=self.on_set_device).pack(side="left", padx=6, pady=8)
+        ttk.Button(right, text="Logout", command=self.on_logout).pack(side="left", padx=6, pady=8)
 
-        #Transfer back to login view 
-        ttk.Button(right, text="Logout", command= self.on_logout).pack(side="left", padx=6, pady=8)
-
-        #Sets up notifcation banner for device connections
+        # Notification banner
         self.banner_frame = tk.Frame(self, bg="#ffefc6")
-        self.banner_label = tk.Label(self.banner_frame, text="", bg="#ffefc6", fg="#333", font=("TkDefaultFont", 10, "bold"))
+        self.banner_label = tk.Label(
+            self.banner_frame,
+            text="",
+            bg="#ffefc6",
+            fg="#333",
+            font=("TkDefaultFont", 10, "bold"),
+        )
         self.banner_label.pack(side="left", padx=12, pady=6)
-        ttk.Button(self.banner_frame, text="Dismiss", command=self.hide_notice).pack(side="right", padx=12, pady=6)
+        ttk.Button(self.banner_frame, text="Dismiss", command=self.hide_notice).pack(
+            side="right", padx=12, pady=6
+        )
         self.banner_visible = False
 
-        
         body = ttk.Frame(self, padding=8)
         body.pack(fill="both", expand=True)
 
-        #Creates varaible for each parameter and sets its default based on params.json
+        # param vars
         self.vars = {k: tk.StringVar(value=str(self.defaults[k])) for k in self.PARAM_SCHEMA}
         self.entries = {}
+        self.rows = {}
 
         params = ttk.LabelFrame(body, text="Programmable Parameters", padding=12)
         params.pack(side="left", fill="y", padx=(0, 8))
 
-        self.rows = {}
         row_index = 0
-
-
         for field_key, field_meta in self.PARAM_SCHEMA.items():
-            unit = field_meta.get("unit", "")  # default to empty string if not present
+            unit = field_meta.get("unit", "")
             label_text = f"{field_meta['label']}" + (f" ({unit})" if unit else "") + ":"
             label_widget = ttk.Label(params, text=label_text)
             label_widget.grid(row=row_index, column=0, sticky="e", padx=6, pady=4)
 
             var = self.vars[field_key]
 
-            # Create slider ONLY if parameter has ranges
             input_widget = None
             slider_widget = None
 
             if "allowed" in field_meta:
-                # Create combobox for parameters with a fixed list of allowed values
                 input_widget = ttk.Combobox(
                     params,
                     values=field_meta["allowed"],
                     textvariable=var,
                     state="readonly",
-                    width=12
+                    width=12,
                 )
                 input_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
-                
-
 
             elif "ranges" in field_meta:
-
                 input_widget = ttk.Entry(params, textvariable=var, width=10)
                 input_widget.grid(row=row_index, column=1, sticky="w", padx=6, pady=4)
 
@@ -303,15 +313,10 @@ class MonitorView(ttk.Frame):
                     v = r["min"]
                     while v <= r["max"]:
                         allowed_vals.append(v)
-                        v = round(v + r["inc"], 5)  # prevent float drift
+                        v = round(v + r["inc"], 5)
 
-                # Sort & remove duplicates
                 allowed_vals = sorted(set(allowed_vals))
-
-                # Store these for later use
                 field_meta["allowed_vals"] = allowed_vals
-
-
 
                 slider_widget = tk.Scale(
                     params,
@@ -322,29 +327,27 @@ class MonitorView(ttk.Frame):
                     orient="horizontal",
                     length=160,
                     resolution=1,
-                    command=lambda idx, k=field_key: self._slider_changed(k, idx)
+                    command=lambda idx, k=field_key: self._slider_changed(k, idx),
                 )
                 slider_widget.grid(row=row_index, column=2, padx=6, pady=4)
 
-                # sync entry → slider
                 var.trace_add(
                     "write",
                     lambda *_,
                     k=field_key,
-                    sl=slider_widget: self._entry_changed(k, sl)
+                    sl=slider_widget: self._entry_changed(k, sl),
                 )
-
-            
 
             self.rows[field_key] = (label_widget, input_widget, slider_widget)
             row_index += 1
-        
 
-
+        # Buttons row
         buttons_row_frame = ttk.Frame(params)
-        buttons_row_frame.grid(row=row_index + 1, column=0, columnspan=2, pady=(12, 0))
+        buttons_row_frame.grid(row=row_index + 1, column=0, columnspan=3, pady=(12, 0))
 
-        ttk.Button(buttons_row_frame, text="Save", command=self.on_save).pack(side="left", padx=4)
+        ttk.Button(buttons_row_frame, text="Save", command=self.on_save).pack(
+            side="left", padx=4
+        )
 
         self.send_btn = ttk.Button(buttons_row_frame, text="Send", command=self.on_send)
         self.send_btn.pack(side="left", padx=4)
@@ -352,13 +355,14 @@ class MonitorView(ttk.Frame):
         self.receive_btn = ttk.Button(buttons_row_frame, text="Receive", command=self.on_receive)
         self.receive_btn.pack(side="left", padx=4)
 
-        ttk.Button(buttons_row_frame, text="Reset Defaults", command=self.on_reset).pack(side="left", padx=4)
+        ttk.Button(buttons_row_frame, text="Reset Defaults", command=self.on_reset).pack(
+            side="left", padx=4
+        )
 
         self.egram_enabled = tk.BooleanVar(value=False)
 
-        # Styles for ON/OFF colors
         style = ttk.Style()
-        style.configure("On.TButton",  foreground="black", background="#28a745")
+        style.configure("On.TButton", foreground="black", background="#28a745")
         style.map("On.TButton", background=[("active", "#218838")])
         style.configure("Off.TButton", foreground="black", background="#dd1a1a")
         style.map("Off.TButton", background=[("active", "#dd1a1a")])
@@ -367,81 +371,49 @@ class MonitorView(ttk.Frame):
             buttons_row_frame,
             text="Egram: OFF",
             style="Off.TButton",
-            command=lambda: (
-                self.egram_enabled.set(not self.egram_enabled.get()),
-                toggle_egram()
-            )
+            command=self.toggle_egram,
         )
         self.egram_btn.pack(side="left", padx=4)
 
-        def toggle_egram():
-            state = self.egram_enabled.get()
-
-            # Change button appearance
-            if state:
-                self.egram_btn.config(text="Egram: ON", style="On.TButton")
-            else:
-                self.egram_btn.config(text="Egram: OFF", style="Off.TButton")
-
-            # Enable/Disable Send + Receive
-            if state:
-                self.send_btn.config(state="disabled")
-                self.receive_btn.config(state="disabled")
-            else:
-                self.send_btn.config(state="normal")
-                self.receive_btn.config(state="normal")
-                
-
-
-        #Display for the graphs (Deliverable_2 implementation)
-        right_panel = ttk.Frame(body, padding=16, relief="groove")
+        # Right panel with embedded Matplotlib figure
+        right_panel = ttk.Frame(body, padding=8, relief="groove")
         right_panel.pack(side="left", fill="both", expand=True)
-        ttk.Label(right_panel, text="Placeholder").pack(expand=True)
 
-        self.mode_cb.set(self.default_mode)  # select default mode in dropdown
-        self.on_mode_change()                # update visible parameters
+        ttk.Label(right_panel, text="Egram Viewer", font=("TkDefaultFont", 12, "bold")).pack(
+            side="top", anchor="w"
+        )
 
-    def on_mode_change(self):
-        mode = self.mode_cb.get()
-        self.app.set_mode(mode)
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax_atr = self.fig.add_subplot(211)
+        self.ax_vent = self.fig.add_subplot(212, sharex=self.ax_atr)
 
-        for key, meta in self.PARAM_SCHEMA.items():
-            widgets = self.rows[key]  # label, entry, maybe slider
-            allowed_modes = meta.get("modes", [])
+        self.ax_atr.set_title("Atrium Egram")
+        self.ax_atr.set_ylabel("Amplitude")
+        self.ax_atr.grid(True)
 
-            if mode in allowed_modes:
-                # show parameter widgets
-                for w in widgets:
-                    if w is not None:
-                        w.grid()
-            else:
-                # hide widgets not used by this mode
-                for w in widgets:
-                    if w is not None:
-                        w.grid_remove()
+        self.ax_vent.set_title("Ventricle Egram")
+        self.ax_vent.set_xlabel("Sample index")
+        self.ax_vent.set_ylabel("Amplitude")
+        self.ax_vent.grid(True)
 
-            saved = load_user_params().get(self.app.current_user, {}).get(mode)
+        self.line_atr, = self.ax_atr.plot([], [], lw=1)
+        self.line_vent, = self.ax_vent.plot([], [], lw=1)
 
-            if saved:
-                for k, v in saved.items():
-                    if k in self.vars:
-                        self.vars[k].set(str(v))
-            else:
-                # load defaults for this mode
-                for k, v in self.defaults.items():
-                    meta = self.PARAM_SCHEMA[k]
-                    if mode in meta.get("modes", []):
-                        self.vars[k].set(str(v))
+        self.canvas = FigureCanvasTkAgg(self.fig, master=right_panel)
+        self.canvas_widget = self.canvas.get_tk_widget()
+        self.canvas_widget.pack(fill="both", expand=True)
 
-    
-    def on_set_device(self):
-        new_id = self.device_var.get().strip() #Grabs ID from entry box
-        if not new_id:
-            messagebox.showwarning("Missing Device ID", "Enter a device ID first") #Error Case for empty device ID
-            return
-        self.app.set_device(new_id) #Calls function to set the ID accordingly
+        self.atr_values = []
+        self.vent_values = []
+        self._sample_counter = 0
+        self._egram_thread = None
 
-    #Helper Functions for visibility of notification banner
+        self.mode_cb.set(self.default_mode)
+        self.on_mode_change()
+
+    # ------------------------------------------------------------------
+    # Banner helpers
+    # ------------------------------------------------------------------
     def show_notice(self, text, bg="#ffefc6", fg="#333"):
         self.banner_label.config(text=text, bg=bg, fg=fg)
         self.banner_frame.config(bg=bg)
@@ -454,95 +426,38 @@ class MonitorView(ttk.Frame):
             self.banner_frame.pack_forget()
             self.banner_visible = False
 
-    def _parse_and_validate(self):
-        clean, errors = {}, []
-
-        def value_in_ranges(value, ranges):
-            for r in ranges:
-                if r["min"] <= value <= r["max"]:
-                    return True
-            return False
-        
-        def snap(value, inc):
-            snapped = round(value / inc) * inc
-
-            # compute decimal places needed from increment
-            if isinstance(inc, float):
-                decimals = len(str(inc).split(".")[1])
-                return round(snapped, decimals)
-
-            return int(snapped)
-        
-        def find_range(value, ranges):
-            for r in ranges:
-                if r["min"] <= value <= r["max"]:
-                    return r
-            return None
-    
+    # ------------------------------------------------------------------
+    # Mode + sliders
+    # ------------------------------------------------------------------
+    def on_mode_change(self):
+        mode = self.mode_cb.get()
+        self.app.set_mode(mode)
 
         for key, meta in self.PARAM_SCHEMA.items():
-            raw = self.vars[key].get().strip()
+            widgets = self.rows[key]
+            allowed_modes = meta.get("modes", [])
 
-            if "ranges" in meta:
-                ty  = meta["type"]
-                try:
-                    #Error checking by attemping to cast to correct type
-                    val = ty(raw)
-                    #Incorrect type entered
-                except ValueError:
-                    errors.append(f"{meta['label']}: not a valid {ty.__name__}")
-                    continue
-                #Variable limit checking
+            if mode in allowed_modes:
+                for w in widgets:
+                    if w is not None:
+                        w.grid()
+            else:
+                for w in widgets:
+                    if w is not None:
+                        w.grid_remove()
 
-                if not value_in_ranges(val, meta["ranges"]):
-                    # Build readable range string
-                    range_str = " or ".join(
-                        f"[{r['min']}, {r['max']}]" for r in meta["ranges"]
-                    )
-                    errors.append(
-                        f"{meta['label']}: {val} {meta['unit']} out of valid ranges {range_str}"
-                    )
-                    continue
-
-            clean[key] = val
-
-            if "allowed" in meta:
-                if raw not in meta["allowed"]:
-                    errors.append(f"{meta['label']}: '{raw}' not a valid option")
-                else:
-                    clean[key] = raw
-
-        if errors:
-            return clean, errors
-            
-        for key, meta in self.PARAM_SCHEMA.items():
-            if key not in clean:
-                continue
-
-            val = clean[key]
-
-            # Only snap if the parameter has ranges and increments
-            if "ranges" in meta:
-                r = find_range(val, meta["ranges"])
-                if r is not None:
-                    snapped = snap(val, r["inc"])
-                    # clamp after snap
-                    snapped = max(r["min"], min(snapped, r["max"]))
-                    clean[key] = snapped
-                    self.vars[key].set(str(snapped))
-            
-            
-
-        #Edge case of LRL and URL
-        if "LRL_ppm" in clean and "URL_ppm" in clean and clean["LRL_ppm"] >= clean["URL_ppm"]:
-            errors.append("Lower Rate Limit must be < Upper Rate Limit")
-
-
-        return clean, errors
-    
+        saved = load_user_params().get(self.app.current_user, {}).get(mode)
+        if saved:
+            for k, v in saved.items():
+                if k in self.vars:
+                    self.vars[k].set(str(v))
+        else:
+            for k, v in self.defaults.items():
+                meta = self.PARAM_SCHEMA[k]
+                if mode in meta.get("modes", []):
+                    self.vars[k].set(str(v))
 
     def _slider_changed(self, key, idx):
-        """When slider moves, update entry."""
         meta = self.PARAM_SCHEMA[key]
         allowed = meta.get("allowed_vals")
         if not allowed:
@@ -552,16 +467,10 @@ class MonitorView(ttk.Frame):
         idx = max(0, min(idx, len(allowed) - 1))
         self.vars[key].set(str(allowed[idx]))
 
-
-
     def _entry_changed(self, key, slider):
         raw = self.vars[key].get()
-
-        # 1. Ignore incomplete or mid-typing inputs
         if raw == "" or raw.endswith(".") or raw.startswith("."):
             return
-
-        # If the string isn't a clean float, ignore
         try:
             v = float(raw)
         except ValueError:
@@ -572,29 +481,100 @@ class MonitorView(ttk.Frame):
         if not allowed:
             return
 
-        # 2. Prevent snapping: only update slider if the float matches EXACT allowed value
-        #    "3" → float(3.0) → allowed contains 3.0 → but we should NOT snap on "3"
-        #    Therefore: ensure the *string* matches the exact allowed representation
         allowed_strs = [str(a) for a in allowed]
-
         if raw not in allowed_strs:
             return
 
-        # 3. Now safe to update slider
         idx = allowed_strs.index(raw)
         slider.set(idx)
 
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+    def _parse_and_validate(self):
+        clean, errors = {}, []
 
-            
+        def value_in_ranges(value, ranges):
+            for r in ranges:
+                if r["min"] <= value <= r["max"]:
+                    return True
+            return False
 
+        def snap(value, inc):
+            snapped = round(value / inc) * inc
+            if isinstance(inc, float):
+                decimals = len(str(inc).split(".")[1])
+                return round(snapped, decimals)
+            return int(snapped)
 
+        def find_range(value, ranges):
+            for r in ranges:
+                if r["min"] <= value <= r["max"]:
+                    return r
+            return None
 
+        for key, meta in self.PARAM_SCHEMA.items():
+            raw = self.vars[key].get().strip()
+
+            if "ranges" in meta:
+                ty = meta["type"]
+                try:
+                    val = ty(raw)
+                except ValueError:
+                    errors.append(f"{meta['label']}: not a valid {ty.__name__}")
+                    continue
+
+                if not value_in_ranges(val, meta["ranges"]):
+                    range_str = " or ".join(
+                        f"[{r['min']}, {r['max']}]" for r in meta["ranges"]
+                    )
+                    errors.append(
+                        f"{meta['label']}: {val} {meta['unit']} out of valid ranges {range_str}"
+                    )
+                    continue
+
+                clean[key] = val
+
+            if "allowed" in meta:
+                if raw not in meta["allowed"]:
+                    errors.append(f"{meta['label']}: '{raw}' not a valid option")
+                else:
+                    clean[key] = raw
+
+        if errors:
+            return clean, errors
+
+        for key, meta in self.PARAM_SCHEMA.items():
+            if key not in clean:
+                continue
+
+            val = clean[key]
+            if "ranges" in meta:
+                r = find_range(val, meta["ranges"])
+                if r is not None:
+                    snapped = snap(val, r["inc"])
+                    snapped = max(r["min"], min(snapped, r["max"]))
+                    clean[key] = snapped
+                    self.vars[key].set(str(snapped))
+
+        if "LRL" in clean and "URL" in clean:
+            try:
+                if clean["LRL"] >= clean["URL"]:
+                    errors.append("Lower Rate Limit must be < Upper Rate Limit")
+            except TypeError:
+                pass
+
+        return clean, errors
+
+    # ------------------------------------------------------------------
+    # Buttons: Save / Reset / Logout
+    # ------------------------------------------------------------------
     def on_save(self):
         clean, errors = self._parse_and_validate()
         if errors:
             messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
             return
-        
+
         param_config = load_user_params()
         username = self.app.current_user
         mode = self.mode_cb.get()
@@ -604,34 +584,55 @@ class MonitorView(ttk.Frame):
 
         filtered = {}
         for key, meta in self.PARAM_SCHEMA.items():
-            if mode in meta.get("modes", []):     # only parameters used by this mode
+            if mode in meta.get("modes", []):
                 filtered[key] = clean[key]
-
 
         param_config[username][mode] = filtered
         save_user_params(param_config)
 
-        #Clean parameters will be used in Deliverable 2
-        self.app.status_var.set(f"Comms: idle  |  parameters saved for {username} ({mode})")
+        self.app.status_var.set(
+            f"Comms: idle  |  parameters saved for {username} ({mode})"
+        )
 
     def on_reset(self):
-        #Resets all parameters to defaults from params.json
         for k, v in self.defaults.items():
             self.vars[k].set(str(v))
         self.app.status_var.set("Comms: idle  |  defaults restored")
+
     def on_logout(self):
-        self.app.status_var.set(f"Comms: idle")
+        self.app.status_var.set("Comms: idle")
         self.app.show_view(self.app.login_view)
 
+    # ------------------------------------------------------------------
+    # Device + UART actions
+    # ------------------------------------------------------------------
+    def on_set_device(self):
+        new_id = self.device_var.get().strip()
+        if not new_id:
+            messagebox.showwarning("Missing Device ID", "Enter a device ID first")
+            return
+        self.app.set_device(new_id)
 
     def on_send(self):
         if self.app.serial is None:
             print("Not connected to device.")
             return
 
+        clean, errors = self._parse_and_validate()
+        if errors:
+            messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
+            return
+
+        mode_name = self.mode_cb.get()
+        if not mode_name or mode_name == "Select mode":
+            messagebox.showwarning("Mode missing", "Select a pacing mode before sending.")
+            return
+
+        mode_code = MODE_MAP.get(mode_name, 1)
+
         try:
-            uart_send_set_params(self.app.serial)
-            print("Sent SET PARAMS frame.")
+            uart_send_set_params(clean, mode_code)
+            print("Sent SET PARAMS frame with GUI values.")
         except Exception as e:
             print(f"Send failed: {e}")
 
@@ -641,16 +642,90 @@ class MonitorView(ttk.Frame):
             return
 
         try:
-            uart_send_recv_only(self.app.serial)
+            uart_send_recv_only()
             print("Sent RECV ONLY frame.")
         except Exception as e:
             print(f"Receive command failed: {e}")
 
+    # ------------------------------------------------------------------
+    # Egram streaming + plotting
+    # ------------------------------------------------------------------
+    def toggle_egram(self):
+        state = self.egram_enabled.get()
+        if not state:
+            # turning ON
+            clean, errors = self._parse_and_validate()
+            if errors:
+                messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
+                return
+
+            mode_name = self.mode_cb.get()
+            if not mode_name or mode_name == "Select mode":
+                messagebox.showwarning(
+                    "Mode missing",
+                    "Select a pacing mode before starting Egram.",
+                )
+                return
+            mode_code = MODE_MAP.get(mode_name, 1)
+
+            self.egram_enabled.set(True)
+            self.egram_btn.config(text="Egram: ON", style="On.TButton")
+            self.send_btn.config(state="disabled")
+            self.receive_btn.config(state="disabled")
+
+            self.atr_values = []
+            self.vent_values = []
+            self._sample_counter = 0
+
+            def run_stream():
+                try:
+                    stream_egram(self._on_new_egram_sample, clean, mode_code)
+                except Exception as e:
+                    print(f"Egram stream error: {e}")
+
+            self._egram_thread = threading.Thread(
+                target=run_stream,
+                daemon=True,
+            )
+            self._egram_thread.start()
+        else:
+            # turning OFF
+            self.egram_enabled.set(False)
+            self.egram_btn.config(text="Egram: OFF", style="Off.TButton")
+            stop_stream()
+            self.send_btn.config(state="normal")
+            self.receive_btn.config(state="normal")
+
+    def _on_new_egram_sample(self, atr, vent, params_echo, idx):
+        self.atr_values.append(atr)
+        self.vent_values.append(vent)
+
+        if len(self.atr_values) > 500:
+            self.atr_values = self.atr_values[-500:]
+            self.vent_values = self.vent_values[-500:]
+
+        self._sample_counter += 1
+
+        if self._sample_counter % 2 == 0:
+            self.after(0, self._update_egram_plot)
+
+    def _update_egram_plot(self):
+        if not self.atr_values:
+            return
+        x = list(range(len(self.atr_values)))
+        self.line_atr.set_data(x, self.atr_values)
+        self.line_vent.set_data(x, self.vent_values)
+
+        self.ax_atr.set_xlim(0, max(len(self.atr_values), 10))
+        min_a, max_a = min(self.atr_values), max(self.atr_values)
+        self.ax_atr.set_ylim(min_a - 0.1, max_a + 0.1)
+
+        self.ax_vent.set_xlim(0, max(len(self.vent_values), 10))
+        min_v, max_v = min(self.vent_values), max(self.vent_values)
+        self.ax_vent.set_ylim(min_v - 0.1, max_v + 0.1)
+
+        self.canvas.draw_idle()
 
 
-
-        
-
-# ------------------------------- Run app -----------------------------------
 if __name__ == "__main__":
     App().mainloop()
