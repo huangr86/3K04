@@ -1,10 +1,10 @@
 import os
 import json
 
-BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR     = os.path.join(BASE_DIR, "data")
-USERS_JSON   = os.path.join(DATA_DIR, "users.json")
-PARAMS_JSON  = os.path.join(DATA_DIR, "params.json")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+USERS_JSON = os.path.join(DATA_DIR, "users.json")
+PARAMS_JSON = os.path.join(DATA_DIR, "params.json")
 USER_PARAMS_JSON = os.path.join(DATA_DIR, "user_params.json")
 
 
@@ -43,8 +43,8 @@ def load_param_config():
         cfg = json.load(f)
 
     schema_raw = cfg.get("schema", {})
-    defaults   = cfg.get("defaults", {})
-    modes      = cfg.get("modes", [])
+    defaults = cfg.get("defaults", {})
+    modes = cfg.get("modes", [])
 
     type_map = {"int": int, "float": float}
 

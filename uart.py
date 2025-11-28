@@ -115,94 +115,120 @@ def _get_val(params: dict | None, key: str, default):
 
 
 # ---------------------------------------------------------------------
-# Frame builders – use GUI params instead of hard-coded values
+# Frame builder – using YOUR params.json keys
 # ---------------------------------------------------------------------
 def build_set_param_frame(params: dict | None, mode_code: int = 1) -> bytes:
     """
     Build the 91 byte SET_PARAM frame.
 
     `params` is the dict produced by MonitorView._parse_and_validate().
-    Expected keys (adjust to match your params.json keys):
 
-        LRL
-        URL
-        Reaction_Time
-        RF
-        W_Thres
-        J_Thres
-        R_Thres
-        Recovery_Time
-        W_MSR, J_MSR, R_MSR
-        W_Hys, J_Hys, R_Hys
-        Atrium_Amp, ATR_Pulse_Width, A_Refractory_Per, ATR_Sense
-        Vent_Amp, Vent_Pulse_Width, V_Refractory_Per, VENT_Sense
+    Mapping from params.json → on-wire fields:
+
+      MODE                 ← mode_code (0x01..0x08)
+
+      LRL                  ← "LRL_ppm"
+      URL                  ← "URL_ppm"
+
+      Reaction_Time        ← "Reaction Time"
+      RF (Response Factor) ← "Response Factor"
+
+      W_Thres, J_Thres, R_Thres,
+      W_MSR,  J_MSR,  R_MSR,
+      W_Hys,  J_Hys,  R_Hys  → kept at defaults for now
+
+      Recovery_Time        ← "Recovery Time"
+
+      Atrium_Amp           ← "Pace_Atrial_Amp_V"
+      ATR_Pulse_Width      ← "Atrial_PW_ms"   (rounded to nearest ms)
+      A_Refractory_Per     ← "ARP_ms"
+      ATR_Sense            ← "Atrial Sensitivity"
+
+      Vent_Amp             ← "Pace_Ventricular_Amp_V"
+      Vent_Pulse_Width     ← "Ventricular_PW_ms"  (rounded to nearest ms)
+      V_Refractory_Per     ← "VRP_ms"
+      VENT_Sense           ← "Ventricular Sensitivity"
     """
 
     MODE = int(mode_code) & 0xFF
 
-    # Integers
-    LRL    = _get_val(params, "LRL", 60)
-    URL    = _get_val(params, "URL", 180)
-    Reaction_Time = _get_val(params, "Reaction_Time", 30)
-    RF     = _get_val(params, "RF", 16)
-    Recovery_Time = _get_val(params, "Recovery_Time", 5)
-    W_MSR  = _get_val(params, "W_MSR", 80)
-    J_MSR  = _get_val(params, "J_MSR", 120)
-    R_MSR  = _get_val(params, "R_MSR", 160)
-    ATR_Pulse_Width  = _get_val(params, "ATR_Pulse_Width", 1)
-    A_Refractory_Per = _get_val(params, "A_Refractory_Per", 250)
-    Vent_Pulse_Width = _get_val(params, "Vent_Pulse_Width", 1)
-    V_Refractory_Per = _get_val(params, "V_Refractory_Per", 200)
+    # ----- Basic rate limits -----
+    LRL_ppm = _get_val(params, "LRL_ppm", 60)
+    URL_ppm = _get_val(params, "URL_ppm", 120)
+    LRL = int(LRL_ppm) & 0xFFFF
+    URL = int(URL_ppm) & 0xFFFF
 
-    # Doubles
+    # ----- Rate-response high-level fields -----
+    Reaction_Time = int(_get_val(params, "Reaction Time", 30)) & 0xFFFF
+    RF            = int(_get_val(params, "Response Factor", 8)) & 0xFFFF
+    Recovery_Time = int(_get_val(params, "Recovery Time", 5)) & 0xFFFF
+
+    # These W/J/R* are not directly exposed via GUI, keep as defaults for now
     W_Thres = _get_val(params, "W_Thres", 0.5)
     J_Thres = _get_val(params, "J_Thres", 1.75)
     R_Thres = _get_val(params, "R_Thres", 3.0)
 
-    W_Hys = _get_val(params, "W_Hys", 0.5)
-    J_Hys = _get_val(params, "J_Hys", 1.75)
-    R_Hys = _get_val(params, "R_Hys", 2.75)
+    W_MSR   = _get_val(params, "W_MSR", 80)
+    J_MSR   = _get_val(params, "J_MSR", 120)
+    R_MSR   = _get_val(params, "R_MSR", 160)
 
-    # Floats
-    Atrium_Amp = _get_val(params, "Atrium_Amp", 1.0)
-    ATR_Sense  = _get_val(params, "ATR_Sense", 4.0)
-    Vent_Amp   = _get_val(params, "Vent_Amp", 1.0)
-    VENT_Sense = _get_val(params, "VENT_Sense", 4.0)
+    W_Hys   = _get_val(params, "W_Hys", 0.5)
+    J_Hys   = _get_val(params, "J_Hys", 1.75)
+    R_Hys   = _get_val(params, "R_Hys", 2.75)
 
+    # ----- Atrial side -----
+    Atrium_Amp = float(_get_val(params, "Pace_Atrial_Amp_V", 1.0))
+    ATR_PW_f   = float(_get_val(params, "Atrial_PW_ms", 1.0))
+    ATR_Pulse_Width  = int(round(ATR_PW_f)) & 0xFFFF
+
+    A_Refractory_Per = int(_get_val(params, "ARP_ms", 250)) & 0xFFFF
+    ATR_Sense        = float(_get_val(params, "Atrial Sensitivity", 0.75))
+
+    # ----- Ventricular side -----
+    Vent_Amp = float(_get_val(params, "Pace_Ventricular_Amp_V", 1.0))
+    Vent_PW_f = float(_get_val(params, "Ventricular_PW_ms", 1.0))
+    Vent_Pulse_Width = int(round(Vent_PW_f)) & 0xFFFF
+
+    V_Refractory_Per = int(_get_val(params, "VRP_ms", 200)) & 0xFFFF
+    VENT_Sense       = float(_get_val(params, "Ventricular Sensitivity", 2.5))
+
+    # ----- Build byte frame in the same order Simulink decodes -----
     frame = bytearray()
 
-    frame.append(CMD_PARAM)      # Rx(1)
-    frame.append(SUBCMD_SET_PAR) # Rx(2)
+    frame.append(CMD_PARAM)        # Rx(1)
+    frame.append(SUBCMD_SET_PAR)   # Rx(2)
 
-    frame.extend(struct.pack("<B", MODE))
+    frame.extend(struct.pack("<B", MODE))  # Rx(3)
 
-    frame.extend(struct.pack("<H", LRL))
-    frame.extend(struct.pack("<H", URL))
-    frame.extend(struct.pack("<H", Reaction_Time))
-    frame.extend(struct.pack("<H", RF))
+    frame.extend(struct.pack("<H", LRL))          # Rx(4:5)
+    frame.extend(struct.pack("<H", URL))          # Rx(6:7)
+    frame.extend(struct.pack("<H", Reaction_Time))# Rx(8:9)
+    frame.extend(struct.pack("<H", RF))           # Rx(10:11)
 
-    frame.extend(struct.pack("<d", W_Thres))
-    frame.extend(struct.pack("<d", J_Thres))
-    frame.extend(struct.pack("<d", R_Thres))
+    frame.extend(struct.pack("<d", W_Thres))      # Rx(12:19)
+    frame.extend(struct.pack("<d", J_Thres))      # Rx(20:27)
+    frame.extend(struct.pack("<d", R_Thres))      # Rx(28:35)
 
-    frame.extend(struct.pack("<H", Recovery_Time))
-    frame.extend(struct.pack("<H", W_MSR))
-    frame.extend(struct.pack("<H", J_MSR))
-    frame.extend(struct.pack("<H", R_MSR))
+    frame.extend(struct.pack("<H", Recovery_Time))# Rx(36:37)
+    frame.extend(struct.pack("<H", W_MSR))        # Rx(38:39)
+    frame.extend(struct.pack("<H", J_MSR))        # Rx(40:41)
+    frame.extend(struct.pack("<H", R_MSR))        # Rx(42:43)
 
-    frame.extend(struct.pack("<d", W_Hys))
-    frame.extend(struct.pack("<d", J_Hys))
-    frame.extend(struct.pack("<d", R_Hys))
+    frame.extend(struct.pack("<d", W_Hys))        # Rx(44:51)
+    frame.extend(struct.pack("<d", J_Hys))        # Rx(52:59)
+    frame.extend(struct.pack("<d", R_Hys))        # Rx(60:67)
 
-    frame.extend(struct.pack("<f", Atrium_Amp))
-    frame.extend(struct.pack("<H", ATR_Pulse_Width))
-    frame.extend(struct.pack("<H", A_Refractory_Per))
-    frame.extend(struct.pack("<f", ATR_Sense))
+    # ATR
+    frame.extend(struct.pack("<f", Atrium_Amp))       # Rx(68:71)
+    frame.extend(struct.pack("<H", ATR_Pulse_Width))  # Rx(72:73)
+    frame.extend(struct.pack("<H", A_Refractory_Per)) # Rx(74:75)
+    frame.extend(struct.pack("<f", ATR_Sense))        # Rx(76:79)
 
-    frame.extend(struct.pack("<f", Vent_Amp))
-    frame.extend(struct.pack("<H", Vent_Pulse_Width))
-    frame.extend(struct.pack("<H", V_Refractory_Per))
-    frame.extend(struct.pack("<f", VENT_Sense))
+    # VENT
+    frame.extend(struct.pack("<f", Vent_Amp))         # Rx(80:83)
+    frame.extend(struct.pack("<H", Vent_Pulse_Width)) # Rx(84:85)
+    frame.extend(struct.pack("<H", V_Refractory_Per)) # Rx(86:87)
+    frame.extend(struct.pack("<f", VENT_Sense))       # Rx(88:91)
 
     assert len(frame) == 91, f"SET frame length is {len(frame)}, expected 91"
     return bytes(frame)

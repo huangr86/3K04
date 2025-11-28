@@ -25,17 +25,17 @@ from storage import (
 )
 
 MODE_MAP = {
-    "AOO": 0x0,
+    "AOO": 0x3,
     "VOO": 0x1,
-    "AAI": 0x2,
-    "VVI": 0x3,
-    "AOOR": 0x4,
+    "AAI": 0x4,
+    "VVI": 0x2,
+    "AOOR": 0x7,
     "VOOR": 0x5,
-    "AAIR": 0x6,
-    "VVIR": 0x7
+    "AAIR": 0x8,
+    "VVIR": 0x6
 }
 
-# Activity Threshold → 0–6
+# Activity Threshold → 0–6  (not sent over UART yet, GUI-only)
 ACTIVITY_THRESHOLD_MAP = {
     "V-Low": 0,
     "Low": 1,
@@ -46,7 +46,7 @@ ACTIVITY_THRESHOLD_MAP = {
     "V-High": 6
 }
 
-# Hysteresis → 0–1
+# Hysteresis → 0–1 (GUI-only)
 HYSTERESIS_MAP = {
     "Off": 0,
     "Track LRL": 1
@@ -148,7 +148,7 @@ class LoginView(ttk.Frame):
             font=("TkDefaultFont", 16, "bold"),
         ).grid(row=0, column=0, columnspan=3, pady=(0, 12))
 
-        ttk.Label(card, text="Username").grid(row=1, column=0, sticky="e", padx=8, pady=6)g
+        ttk.Label(card, text="Username").grid(row=1, column=0, sticky="e", padx=8, pady=6)
         self.user_entry = ttk.Entry(card, width=28)
         self.user_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=6)
 
@@ -211,12 +211,7 @@ class LoginView(ttk.Frame):
         self.app.current_user = name
         self.app.status_var.set(f"Comms: idle  |  user: {name}")
 
-        user_params = load_user_params()
-        if name in user_params:
-            for k, v in user_params[name].items():
-                if k in self.app.monitor_view.vars:
-                    self.app.monitor_view.vars[k].set(str(v))
-
+        # We let MonitorView load per-mode params when a mode is selected
         self.app.show_view(self.app.monitor_view)
 
 
@@ -225,7 +220,7 @@ class MonitorView(ttk.Frame):
         super().__init__(parent)
         self.app = app
 
-        self.default_mode = "VOOR"  # or whatever default you want
+        self.default_mode = "VOOR"  # choose any default that makes sense
 
         header = ttk.Frame(self)
         header.pack(side="top", fill="x")
@@ -446,7 +441,9 @@ class MonitorView(ttk.Frame):
                     if w is not None:
                         w.grid_remove()
 
-        saved = load_user_params().get(self.app.current_user, {}).get(mode)
+        saved_all = load_user_params().get(self.app.current_user, {})
+        saved = saved_all.get(mode)
+
         if saved:
             for k, v in saved.items():
                 if k in self.vars:
@@ -472,7 +469,7 @@ class MonitorView(ttk.Frame):
         if raw == "" or raw.endswith(".") or raw.startswith("."):
             return
         try:
-            v = float(raw)
+            _ = float(raw)
         except ValueError:
             return
 
@@ -528,8 +525,10 @@ class MonitorView(ttk.Frame):
                     range_str = " or ".join(
                         f"[{r['min']}, {r['max']}]" for r in meta["ranges"]
                     )
+                    unit = meta.get("unit", "")
+                    unit_str = f" {unit}" if unit else ""
                     errors.append(
-                        f"{meta['label']}: {val} {meta['unit']} out of valid ranges {range_str}"
+                        f"{meta['label']}: {val}{unit_str} out of valid ranges {range_str}"
                     )
                     continue
 
@@ -544,10 +543,10 @@ class MonitorView(ttk.Frame):
         if errors:
             return clean, errors
 
+        # Snapping
         for key, meta in self.PARAM_SCHEMA.items():
             if key not in clean:
                 continue
-
             val = clean[key]
             if "ranges" in meta:
                 r = find_range(val, meta["ranges"])
@@ -557,9 +556,10 @@ class MonitorView(ttk.Frame):
                     clean[key] = snapped
                     self.vars[key].set(str(snapped))
 
-        if "LRL" in clean and "URL" in clean:
+        # LRL < URL check using correct JSON keys
+        if "LRL_ppm" in clean and "URL_ppm" in clean:
             try:
-                if clean["LRL"] >= clean["URL"]:
+                if clean["LRL_ppm"] >= clean["URL_ppm"]:
                     errors.append("Lower Rate Limit must be < Upper Rate Limit")
             except TypeError:
                 pass
@@ -585,7 +585,8 @@ class MonitorView(ttk.Frame):
         filtered = {}
         for key, meta in self.PARAM_SCHEMA.items():
             if mode in meta.get("modes", []):
-                filtered[key] = clean[key]
+                if key in clean:
+                    filtered[key] = clean[key]
 
         param_config[username][mode] = filtered
         save_user_params(param_config)
