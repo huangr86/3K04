@@ -4,23 +4,31 @@
 
   "schema": {
     "LRL_ppm":            { "label":"               Lower Rate Limit","unit":"ppm","type":"int",
-                            "ranges" : [   { "min": 30, "max": 50, "inc": 5 },  { "min": 50, "max": 90, "inc": 1}, { "min": 90, "max": 175, "inc": 5} ],
+                            "ranges" : [   { "min": 343, "max": 2000, "inc": 1 }],
                             "modes": ["AOO", "VOO", "AAI","VVI", "AOOR", "AAIR", "VOOR", "VVIR"] },
 
     "URL_ppm":            {"label":"Upper Rate Limit","unit":"ppm","type":"int",
-                            "ranges" : [   { "min": 50, "max": 175, "inc": 5 }],
-
+                            "ranges" : [   { "min": 343, "max": 2000, "inc": 1 }],
                             "modes": ["AOO", "VOO", "AAI","VVI", "AOOR", "AAIR", "VOOR", "VVIR"] },
-    "Atrial_Amp_V":       {"label":"Atrial Amplitude","unit":"V","type":"float",
+
+    "Pace_Atrial_Amp_V":       {"label":"Pace_Atrial Amplitude","unit":"V","type":"float",
                             "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
                             "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
 
-    "Ventricular_Amp_V":  {"label":"Ventricular Amplitude","unit":"V","type":"float",
+    "Sense_Atrial_Amp_V":       {"label":"Sense_Atrial Amplitude","unit":"V","type":"float",
+                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
+                            "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
+
+   "Pace_Ventricular_Amp_V":  {"label":"Pace Ventricular Amplitude","unit":"V","type":"float",
+                            "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
+                            "modes": ["VOO", "VVI", "VOOR", "VVIR"] },
+
+    "Sense_Ventricular_Amp_V":  {"label":"Sense Ventricular Amplitude","unit":"V","type":"float",
                             "ranges" : [   { "min": 0.5, "max": 3.2, "inc": 0.1 }, { "min": 3.5, "max": 7.0, "inc": 0.5 }],
                             "modes": ["VOO", "VVI", "VOOR", "VVIR"] },
 
     "Atrial_PW_ms":       {"label":"Atrial Pulse Width","unit":"ms","type":"float",
-                            "ranges" : [   { "min": 1, "max": 30, "inc": 1 }],
+                            "ranges" : [   { "min": 1, "max": 19, "inc": 1 }],
                             "modes": ["AOO", "AAI", "AOOR", "AAIR"]},
 
     "Atrial Sensitivity":  {"label":"Atrial Sensitivity","unit":"mv","type":"float",
@@ -32,7 +40,7 @@
                             "modes": ["VVI", "VVIR"] },
 
     "Ventricular_PW_ms":  {"label":"Ventricular Pulse Width","unit":"ms","type":"float",
-                            "ranges" : [   { "min": 1, "max": 30, "inc": 1 }],
+                            "ranges" : [   { "min": 1, "max": 19, "inc": 1 }],
                             "modes": ["VOO", "VVI", "VOOR", "VVIR"] },  
 
     "VRP_ms":             {"label":"VRP (Ventricular Refr. P.)","unit":"ms","type":"int",
@@ -73,9 +81,11 @@
   "defaults": {
     "LRL_ppm": 60,
     "URL_ppm": 120,
-    "Atrial_Amp_V": 3.5,
+    "Pace_Atrial_Amp_V": 3.5,
+    "Sense_Atrial_Amp_V": 3.5,
     "Atrial_PW_ms": 1,
-    "Ventricular_Amp_V": 3.5,
+    "Pace_Ventricular_Amp_V": 3.5,
+    "Sense_Ventricular_Amp_V": 3.5,
     "Ventricular_PW_ms": 1,
     "VRP_ms": 320,
     "ARP_ms": 250,
@@ -92,9 +102,11 @@
   "descriptions": {
     "LRL_ppm": "Minimum pacing rate allowed.",
     "URL_ppm": "Maximum pacing rate allowed.",
-    "Atrial_Amp_V": "Voltage of atrial pacing pulse.",
+    "Pace_Atrial_Amp_V": "Voltage of atrial pace pulse.",
+    "Sense_Atrial_Amp_V": "Voltage of atrial sensing pulse.",
     "Atrial_PW_ms": "Duration of atrial pacing pulse.",
-    "Ventricular_Amp_V": "Voltage of ventricular pacing pulse.",
+    "Pace_Ventricular_Amp_V": "Voltage of ventricular pacing pulse.",
+    "Sense_Ventricular_Amp_V": "Voltage of ventricular sensing pulse.",
     "Ventricular_PW_ms": "Duration of ventricular pacing pulse.",
     "VRP_ms": "After a ventricular beat, briefly ignore new ventricular blips.",
     "ARP_ms": "After an atrial beat, briefly ignore new atrial blips.",
