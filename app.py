@@ -35,7 +35,7 @@ MODE_MAP = {
     "VVIR": 0x6
 }
 
-# Activity Threshold → 0–6  (not sent over UART yet, GUI-only)
+# Activity Threshold → 0–6
 ACTIVITY_THRESHOLD_MAP = {
     "V-Low": 0,
     "Low": 1,
@@ -46,7 +46,7 @@ ACTIVITY_THRESHOLD_MAP = {
     "V-High": 6
 }
 
-# Hysteresis → 0–1 (GUI-only)
+# Hysteresis → 0–1
 HYSTERESIS_MAP = {
     "Off": 0,
     "Track LRL": 1
@@ -211,7 +211,12 @@ class LoginView(ttk.Frame):
         self.app.current_user = name
         self.app.status_var.set(f"Comms: idle  |  user: {name}")
 
-        # We let MonitorView load per-mode params when a mode is selected
+        user_params = load_user_params()
+        if name in user_params:
+            for k, v in user_params[name].items():
+                if k in self.app.monitor_view.vars:
+                    self.app.monitor_view.vars[k].set(str(v))
+
         self.app.show_view(self.app.monitor_view)
 
 
@@ -220,7 +225,7 @@ class MonitorView(ttk.Frame):
         super().__init__(parent)
         self.app = app
 
-        self.default_mode = "VOOR"  # choose any default that makes sense
+        self.default_mode = "VOOR"  # or whatever default you want
 
         header = ttk.Frame(self)
         header.pack(side="top", fill="x")
@@ -441,9 +446,7 @@ class MonitorView(ttk.Frame):
                     if w is not None:
                         w.grid_remove()
 
-        saved_all = load_user_params().get(self.app.current_user, {})
-        saved = saved_all.get(mode)
-
+        saved = load_user_params().get(self.app.current_user, {}).get(mode)
         if saved:
             for k, v in saved.items():
                 if k in self.vars:
@@ -469,7 +472,7 @@ class MonitorView(ttk.Frame):
         if raw == "" or raw.endswith(".") or raw.startswith("."):
             return
         try:
-            _ = float(raw)
+            v = float(raw)
         except ValueError:
             return
 
@@ -510,6 +513,7 @@ class MonitorView(ttk.Frame):
                     return r
             return None
 
+        # First pass: type and range checks
         for key, meta in self.PARAM_SCHEMA.items():
             raw = self.vars[key].get().strip()
 
@@ -525,10 +529,8 @@ class MonitorView(ttk.Frame):
                     range_str = " or ".join(
                         f"[{r['min']}, {r['max']}]" for r in meta["ranges"]
                     )
-                    unit = meta.get("unit", "")
-                    unit_str = f" {unit}" if unit else ""
                     errors.append(
-                        f"{meta['label']}: {val}{unit_str} out of valid ranges {range_str}"
+                        f"{meta['label']}: {val} {meta.get('unit','')} out of valid ranges {range_str}"
                     )
                     continue
 
@@ -543,10 +545,11 @@ class MonitorView(ttk.Frame):
         if errors:
             return clean, errors
 
-        # Snapping
+        # Snap to increments
         for key, meta in self.PARAM_SCHEMA.items():
             if key not in clean:
                 continue
+
             val = clean[key]
             if "ranges" in meta:
                 r = find_range(val, meta["ranges"])
@@ -556,13 +559,61 @@ class MonitorView(ttk.Frame):
                     clean[key] = snapped
                     self.vars[key].set(str(snapped))
 
-        # LRL < URL check using correct JSON keys
+        # LRL vs URL check (keys from JSON)
         if "LRL_ppm" in clean and "URL_ppm" in clean:
             try:
                 if clean["LRL_ppm"] >= clean["URL_ppm"]:
                     errors.append("Lower Rate Limit must be < Upper Rate Limit")
             except TypeError:
                 pass
+
+        # Clamp amplitudes into safe hardware range 0.5–5.0 V
+        amp_keys = [
+            "Pace_Atrial_Amp_V",
+            "Sense_Atrial_Amp_V",
+            "Pace_Ventricular_Amp_V",
+            "Sense_Ventricular_Amp_V",
+        ]
+        min_v = 0.5
+        max_v = 5.0
+        for k in amp_keys:
+            if k in clean:
+                try:
+                    v = float(clean[k])
+                except (ValueError, TypeError):
+                    continue
+                if v < min_v:
+                    v = min_v
+                if v > max_v:
+                    v = max_v
+                clean[k] = v
+                self.vars[k].set(str(v))
+
+        # Timing sanity checks so Pulse_Period - VRP - PW and
+        # Pulse_Period - ARP - PW stay positive
+        if "LRL_ppm" in clean:
+            try:
+                lrl = float(clean["LRL_ppm"])
+                pulse_period = 60000.0 / lrl  # ms
+            except Exception:
+                pulse_period = None
+
+            if pulse_period is not None:
+                if "VRP_ms" in clean and "Ventricular_PW_ms" in clean:
+                    vrp = float(clean["VRP_ms"])
+                    vpw = float(clean["Ventricular_PW_ms"])
+                    if pulse_period <= vrp + vpw:
+                        errors.append(
+                            "Ventricular: VRP + Ventricular Pulse Width must be less than 60000 / LRL."
+                        )
+
+                if "ARP_ms" in clean and "Atrial_PW_ms" in clean:
+                    arp = float(clean["ARP_ms"])
+                    apw = float(clean["Atrial_PW_ms"])
+                    if pulse_period <= arp + apw:
+                        errors.append(
+                            "Atrial: ARP + Atrial Pulse Width must be less than 60000 / LRL."
+                        )
 
         return clean, errors
 
@@ -585,8 +636,7 @@ class MonitorView(ttk.Frame):
         filtered = {}
         for key, meta in self.PARAM_SCHEMA.items():
             if mode in meta.get("modes", []):
-                if key in clean:
-                    filtered[key] = clean[key]
+                filtered[key] = clean[key]
 
         param_config[username][mode] = filtered
         save_user_params(param_config)
