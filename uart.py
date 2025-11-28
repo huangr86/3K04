@@ -13,9 +13,9 @@ def init_uart(port="/dev/ttyS0", baudrate=115200):
     ser = serial.Serial(port, baudrate, timeout=0.1)
     return ser
 
-def uart_send_set_params(params: dict):
+def uart_send_set_params():
     global ser
-    frame = build_set_param_frame(params)
+    frame = build_set_param_frame()
     ser.write(frame)
 
 def uart_send_recv_only():
