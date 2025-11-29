@@ -106,6 +106,10 @@ class App(tk.Tk):
         self.mode_var.set(f"Mode: {mode}")
 
     def set_device(self, new_id: str):
+        """
+        Update the active device ID, refresh the status bar, and show a notice
+        indicating whether a new, different, or the same pacemaker was detected.
+        """
         old = self.device_id
         self.prev_device_id = old
         self.device_id = new_id
@@ -176,6 +180,10 @@ class LoginView(ttk.Frame):
         self.pass_entry.bind("<Return>", lambda e: self.on_login())
 
     def on_register(self):
+        """
+        Register a new user if the username is unique, inputs are valid,
+        and the local user limit has not been reached.
+        """
         data = load_users()
         users = data["users"]
         if len(users) >= 10:
@@ -198,6 +206,9 @@ class LoginView(ttk.Frame):
         self.pass_entry.delete(0, "end")
 
     def on_login(self):
+        """
+        Authenticate the user and load their saved parameters if login succeeds.
+        """
         data  = load_users()
         users = data["users"]
         name  = self.user_entry.get().strip()
@@ -430,6 +441,9 @@ class MonitorView(ttk.Frame):
     # Mode + sliders
     # ------------------------------------------------------------------
     def on_mode_change(self):
+        """
+        Update the UI and parameter values based on the selected pacing mode.
+        """
         mode = self.mode_cb.get()
         self.app.set_mode(mode)
 
@@ -458,6 +472,10 @@ class MonitorView(ttk.Frame):
                     self.vars[k].set(str(v))
 
     def _slider_changed(self, key, idx):
+        """
+        Update the variable associated with a slider when its value changes,
+        clamping the index to allowed parameter values.
+        """
         meta = self.PARAM_SCHEMA[key]
         allowed = meta.get("allowed_vals")
         if not allowed:
@@ -468,6 +486,9 @@ class MonitorView(ttk.Frame):
         self.vars[key].set(str(allowed[idx]))
 
     def _entry_changed(self, key, slider):
+        """
+        Validate entry input and update the linked slider if the value is allowed.
+        """
         raw = self.vars[key].get()
         if raw == "" or raw.endswith(".") or raw.startswith("."):
             return
@@ -492,6 +513,11 @@ class MonitorView(ttk.Frame):
     # Validation
     # ------------------------------------------------------------------
     def _parse_and_validate(self):
+        """
+        Validate and sanitize all parameter inputs, snapping values to allowed increments,
+        clamping amplitudes, and performing inter-parameter checks. Returns cleaned values
+        and a list of any validation errors.
+        """
         clean, errors = {}, []
 
         def value_in_ranges(value, ranges):
@@ -501,6 +527,9 @@ class MonitorView(ttk.Frame):
             return False
 
         def snap(value, inc):
+            """
+        Round `value` to the nearest multiple of `inc`, preserving decimal precision.
+        """
             snapped = round(value / inc) * inc
             if isinstance(inc, float):
                 decimals = len(str(inc).split(".")[1])
@@ -621,6 +650,9 @@ class MonitorView(ttk.Frame):
     # Buttons: Save / Reset / Logout
     # ------------------------------------------------------------------
     def on_save(self):
+        """
+        Validate current parameters and save them for the active user and mode.
+        """
         clean, errors = self._parse_and_validate()
         if errors:
             messagebox.showerror("Invalid parameter(s)", "\n".join(errors))
@@ -646,6 +678,9 @@ class MonitorView(ttk.Frame):
         )
 
     def on_reset(self):
+        """ 
+        Sets the parameters to the nominal values
+        """
         for k, v in self.defaults.items():
             self.vars[k].set(str(v))
         self.app.status_var.set("Comms: idle  |  defaults restored")
@@ -665,6 +700,9 @@ class MonitorView(ttk.Frame):
         self.app.set_device(new_id)
 
     def on_send(self):
+        """
+        Validate parameters and send them to the connected device via UART.
+        """
         if self.app.serial is None:
             print("Not connected to device.")
             return
@@ -688,6 +726,9 @@ class MonitorView(ttk.Frame):
             print(f"Send failed: {e}")
 
     def on_receive(self):
+        """
+        Send a RECV_ONLY frame to the device to request parameter and egram data.
+        """
         if self.app.serial is None:
             print("Not connected to device.")
             return
@@ -702,6 +743,10 @@ class MonitorView(ttk.Frame):
     # Egram streaming + plotting
     # ------------------------------------------------------------------
     def toggle_egram(self):
+        """
+        Start or stop continuous egram streaming, validating parameters and
+        updating the UI and button states accordingly.
+        """
         state = self.egram_enabled.get()
         if not state:
             # turning ON
@@ -748,6 +793,10 @@ class MonitorView(ttk.Frame):
             self.receive_btn.config(state="normal")
 
     def _on_new_egram_sample(self, atr, vent, params_echo, idx):
+        """
+        Handle a new egram sample by storing atrial and ventricular values
+        and periodically updating the egram plot in the UI.
+        """
         self.atr_values.append(atr)
         self.vent_values.append(vent)
 
@@ -761,6 +810,9 @@ class MonitorView(ttk.Frame):
             self.after(0, self._update_egram_plot)
 
     def _update_egram_plot(self):
+        """
+        Refresh the egram plot with the latest atrial and ventricular data.
+        """
         if not self.atr_values:
             return
         x = list(range(len(self.atr_values)))

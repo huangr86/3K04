@@ -39,6 +39,9 @@ def save_user_params(data):
 
 
 def load_param_config():
+    """
+    Load parameter schema, default values, and mode list from the JSON config.
+    """
     with open(PARAMS_JSON, "r") as f:
         cfg = json.load(f)
 
