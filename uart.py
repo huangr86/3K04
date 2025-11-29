@@ -14,12 +14,13 @@ _stream_running = False
 # ---------------------------------------------------------------------
 # Protocol parameters
 # ---------------------------------------------------------------------
-CMD_PARAM        = 0x00   # Rx(1)
-SUBCMD_SET_PAR   = 0x00   # Rx(2) for SET_PARAM
-SUBCMD_RECV_ONLY = 0x01   # Rx(2) for READ / EGRAM ONLY
+CMD_PARAM        = 0x16   # Rx(1)
+SUBCMD_SET_PAR   = 0x55   # Rx(2) for SET_PARAM
+SUBCMD_RECV_ONLY = 0x22   # Rx(2) for READ / EGRAM ONLY
 
-FRAME_LEN   = 105       # 89 param bytes + 16 egram bytes
-PARAM_LEN   = 89
+# 2 command bytes + 89 parameter bytes + 16 egram bytes
+FRAME_LEN   = 105       # total RX frame
+PARAM_LEN   = 89        # echo parameter region
 EGRAM_LEN   = 16        # 2 doubles (ATR, VENT)
 
 SLEEP_BETWEEN_SAMPLES = 0.005
@@ -115,107 +116,120 @@ def _get_val(params: dict | None, key: str, default):
 
 
 # ---------------------------------------------------------------------
-# Frame builders – GUI params to pacemaker bytes
+# Frame builders – aligned with NEW Simulink layout
 # ---------------------------------------------------------------------
 def build_set_param_frame(params: dict | None, mode_code: int = 1) -> bytes:
     """
-    Build the 91 byte SET_PARAM frame using the keys from params.json:
+    Build the 91-byte SET_PARAM frame.
 
-      LRL_ppm, URL_ppm,
-      "Reaction Time", "Response Factor", "Recovery Time",
-      Atrial_PW_ms, Ventricular_PW_ms, ARP_ms, VRP_ms,
-      Pace_Atrial_Amp_V, Sense_Atrial_Amp_V,
-      Pace_Ventricular_Amp_V, Sense_Ventricular_Amp_V,
-      etc.
+    Layout after CMD and SUBCMD:
 
-    Layout must match the Stateflow SET_PARAM block.
+        Rx(3)  MODE              uint8
+        Rx(4:5)  LRL             uint16
+        Rx(6:7)  URL             uint16
+
+        % pacing and sensing first
+        Rx(8:11)   a_PaceAmp     single
+        Rx(12:13)  a_PulseWidth  uint16
+        Rx(14:15)  ARP           uint16
+        Rx(16:19)  a_SenseAmp    single
+
+        Rx(20:23)  v_PaceAmp     single
+        Rx(24:25)  v_PulseWidth  uint16
+        Rx(26:27)  VRP           uint16
+        Rx(28:31)  v_SenseAmp    single
+
+        % then rate response block
+        Rx(32:33)  Reaction_Time   uint16
+        Rx(34:35)  Response_Factor uint16
+        Rx(36:43)  Walk_Thresh     double
+        Rx(44:51)  Jog_Thresh      double
+        Rx(52:59)  Run_Thresh      double
+        Rx(60:61)  Recovery_Time   uint16
+        Rx(62:63)  Walk_MSR        uint16
+        Rx(64:65)  Jog_MSR         uint16
+        Rx(66:67)  Run_MSR         uint16
+        Rx(68:75)  Walk_Hys        double
+        Rx(76:83)  Jog_Hys         double
+        Rx(84:91)  Run_Hys         double
     """
 
     MODE = int(mode_code) & 0xFF
 
-    # Rate limits
-    LRL = int(_get_val(params, "LRL_ppm", 60))
-    URL = int(_get_val(params, "URL_ppm", 120))
+    # ---- drawn from DCM JSON params ----
+    # heart rates (ppm)
+    LRL_ppm = _get_val(params, "LRL_ppm", 60)
+    URL_ppm = _get_val(params, "URL_ppm", 120)
 
-    # Rate adaptive high level settings
-    Reaction_Time = int(_get_val(params, "Reaction Time", 30))   # seconds
-    RF            = int(_get_val(params, "Response Factor", 8))  # dimensionless
+    # atrial side
+    a_PaceAmp_V  = _get_val(params, "Pace_Atrial_Amp_V", 3.5)      # V
+    a_PW_ms      = _get_val(params, "Atrial_PW_ms", 1.0)           # ms
+    ARP_ms       = _get_val(params, "ARP_ms", 250)                 # ms
+    a_SenseAmp_V = _get_val(params, "Sense_Atrial_Amp_V", 3.5)     # V, used as a_SenseAmp
 
-    # Thresholds and hysteresis - internal to model, keep as constants
-    W_Thres = 0.5
-    J_Thres = 1.75
-    R_Thres = 3.0
+    # ventricular side
+    v_PaceAmp_V  = _get_val(params, "Pace_Ventricular_Amp_V", 3.5) # V
+    v_PW_ms      = _get_val(params, "Ventricular_PW_ms", 1.0)      # ms
+    VRP_ms       = _get_val(params, "VRP_ms", 320)                 # ms
+    v_SenseAmp_V = _get_val(params, "Sense_Ventricular_Amp_V", 3.5)# V
 
-    Recovery_Time = int(_get_val(params, "Recovery Time", 5))    # minutes
+    # rate response
+    Reaction_Time   = _get_val(params, "Reaction Time", 30)        # s
+    Response_Factor = _get_val(params, "Response Factor", 8)       # unitless
+    Recovery_Time   = _get_val(params, "Recovery Time", 5)         # min
 
-    # Max sensor rates (just tie them to URL for now)
-    W_MSR = URL
-    J_MSR = URL
-    R_MSR = URL
+    # The Walk/Jog/Run thresholds and hysteresis we keep as internal defaults for now
+    Walk_Thresh = 0.5
+    Jog_Thresh  = 1.75
+    Run_Thresh  = 3.0
 
-    W_Hys = 0.5
-    J_Hys = 1.75
-    R_Hys = 2.75
+    Walk_MSR = 90
+    Jog_MSR  = 110
+    Run_MSR  = 130
 
-    # Helper to clamp amplitudes to hardware range 0.5–5.0 V
-    def clamp_amp(v):
-        return max(0.5, min(5.0, float(v)))
+    Walk_Hys = 0.5
+    Jog_Hys  = 1.75
+    Run_Hys  = 2.75
 
-    # Atrial parameters
-    Atrium_Amp = clamp_amp(_get_val(params, "Pace_Atrial_Amp_V", 3.5))
-    ATR_Sense  = clamp_amp(_get_val(params, "Sense_Atrial_Amp_V", 3.5))
-
-    # Ventricular parameters
-    Vent_Amp   = clamp_amp(_get_val(params, "Pace_Ventricular_Amp_V", 3.5))
-    VENT_Sense = clamp_amp(_get_val(params, "Sense_Ventricular_Amp_V", 3.5))
-
-    # Pulse widths - GUI uses 0.1–1.9 ms in 0.1 steps, model expects uint16 ms
-    def clamp_pw(v):
-        v = max(0.1, min(1.9, float(v)))
-        return max(1, int(round(v)))  # never send 0 ms
-
-    ATR_Pulse_Width  = clamp_pw(_get_val(params, "Atrial_PW_ms", 1.0))
-    Vent_Pulse_Width = clamp_pw(_get_val(params, "Ventricular_PW_ms", 1.0))
-
-    # Refractory periods
-    A_Refractory_Period = int(_get_val(params, "ARP_ms", 250))
-    V_Refractory_Period = int(_get_val(params, "VRP_ms", 320))
-
-    # Now pack in the exact order expected by the Simulink chart
+    # ---- pack into bytes ----
     frame = bytearray()
 
-    frame.append(CMD_PARAM)      # Rx(1)
-    frame.append(SUBCMD_SET_PAR) # Rx(2)
+    # CMD and SUBCMD
+    frame.append(CMD_PARAM)        # Rx(1)
+    frame.append(SUBCMD_SET_PAR)   # Rx(2)
 
-    frame.extend(struct.pack("<B", MODE))          # Rx(3)
+    # mode and main rates
+    frame.extend(struct.pack("<B", MODE))         # Rx(3)
+    frame.extend(struct.pack("<H", LRL_ppm))      # Rx(4:5)
+    frame.extend(struct.pack("<H", URL_ppm))      # Rx(6:7)
 
-    frame.extend(struct.pack("<H", LRL))           # Rx(4:5)
-    frame.extend(struct.pack("<H", URL))           # Rx(6:7)
-    frame.extend(struct.pack("<H", Reaction_Time)) # Rx(8:9)
-    frame.extend(struct.pack("<H", RF))            # Rx(10:11)
+    # pacing and sensing first
+    frame.extend(struct.pack("<f", a_PaceAmp_V))                # Rx(8:11)
+    frame.extend(struct.pack("<H", int(round(a_PW_ms))))        # Rx(12:13)
+    frame.extend(struct.pack("<H", int(round(ARP_ms))))         # Rx(14:15)
+    frame.extend(struct.pack("<f", a_SenseAmp_V))               # Rx(16:19)
 
-    frame.extend(struct.pack("<d", W_Thres))       # Rx(12:19)
-    frame.extend(struct.pack("<d", J_Thres))       # Rx(20:27)
-    frame.extend(struct.pack("<d", R_Thres))       # Rx(28:35)
+    frame.extend(struct.pack("<f", v_PaceAmp_V))                # Rx(20:23)
+    frame.extend(struct.pack("<H", int(round(v_PW_ms))))        # Rx(24:25)
+    frame.extend(struct.pack("<H", int(round(VRP_ms))))         # Rx(26:27)
+    frame.extend(struct.pack("<f", v_SenseAmp_V))               # Rx(28:31)
 
-    frame.extend(struct.pack("<H", Recovery_Time)) # Rx(36:37)
-    frame.extend(struct.pack("<H", W_MSR))         # Rx(38:39)
-    frame.extend(struct.pack("<H", J_MSR))         # Rx(40:41)
-    frame.extend(struct.pack("<H", R_MSR))         # Rx(42:43)
+    # rate response bloc
+    frame.extend(struct.pack("<H", int(Reaction_Time)))         # Rx(32:33)
+    frame.extend(struct.pack("<H", int(Response_Factor)))       # Rx(34:35)
 
-    frame.extend(struct.pack("<d", W_Hys))         # Rx(44:51)
-    frame.extend(struct.pack("<d", J_Hys))         # Rx(52:59)
-    frame.extend(struct.pack("<d", R_Hys))         # Rx(60:67)
+    frame.extend(struct.pack("<d", Walk_Thresh))                # Rx(36:43)
+    frame.extend(struct.pack("<d", Jog_Thresh))                 # Rx(44:51)
+    frame.extend(struct.pack("<d", Run_Thresh))                 # Rx(52:59)
 
-    frame.extend(struct.pack("<f", Atrium_Amp))           # Rx(68:71)
-    frame.extend(struct.pack("<H", ATR_Pulse_Width))      # Rx(72:73)
-    frame.extend(struct.pack("<H", A_Refractory_Period))  # Rx(74:75)
-    frame.extend(struct.pack("<f", ATR_Sense))            # Rx(76:79)
+    frame.extend(struct.pack("<H", int(Recovery_Time)))         # Rx(60:61)
+    frame.extend(struct.pack("<H", int(Walk_MSR)))              # Rx(62:63)
+    frame.extend(struct.pack("<H", int(Jog_MSR)))               # Rx(64:65)
+    frame.extend(struct.pack("<H", int(Run_MSR)))               # Rx(66:67)
 
-    frame.extend(struct.pack("<f", Vent_Amp))             # Rx(80:83)
-    frame.extend(struct.pack("<H", Vent_Pulse_Width))     # Rx(84:85)
-    frame.extend(struct.pack("<H", V_Refractory_Period))  # Rx(86:87)
-    frame.extend(struct.pack("<f", VENT_Sense))           # Rx(88:91)
+    frame.extend(struct.pack("<d", Walk_Hys))                   # Rx(68:75)
+    frame.extend(struct.pack("<d", Jog_Hys))                    # Rx(76:83)
+    frame.extend(struct.pack("<d", Run_Hys))                    # Rx(84:91)
 
     assert len(frame) == 91, f"SET frame length is {len(frame)}, expected 91"
     return bytes(frame)
@@ -324,7 +338,7 @@ def stream_egram(callback, params: dict | None, mode_code: int = 1):
         return
 
     _stream_stop_requested = False    # request flag
-    _stream_running = True            # state flag
+    _stream_running = True
 
     set_frame  = build_set_param_frame(params, mode_code)
     recv_frame = build_recv_only_frame()
@@ -336,6 +350,7 @@ def stream_egram(callback, params: dict | None, mode_code: int = 1):
     ser.write(set_frame)
     ser.flush()
 
+    # read initial echo
     try:
         _ = _read_one_frame()
     except RuntimeError as e:
